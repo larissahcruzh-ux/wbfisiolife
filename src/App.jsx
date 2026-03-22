@@ -31,7 +31,6 @@ import {
   Upload,
   CheckCircle2
 } from 'lucide-react';
-
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
@@ -81,7 +80,7 @@ export default function App() {
   const [routeForm, setRouteForm] = useState({ date: '', city: '', rooms: 1 });
 
   // ==========================================
-  // FUNÇÕES DE UTILIDADE
+  // FUNÇÕES DE UTILIDADE E CORREÇÃO DE FUSO
   // ==========================================
   
   const getDaysInMonth = (date) => {
@@ -107,12 +106,7 @@ export default function App() {
 
   const formatSafeDate = (rawDate) => {
     if (!rawDate) return '--/--/----';
-    let s = String(rawDate);
-    if (s.includes('T') && s.includes('/')) {
-      const day = s.split('T')[0];
-      const rest = s.split('Z')[1] || s.split('000Z')[1];
-      if (day && rest) return day + rest;
-    }
+    let s = String(rawDate).trim();
     if (s.includes('T')) s = s.split('T')[0];
     if (s.includes('-')) {
       const p = s.split('-');
@@ -125,11 +119,21 @@ export default function App() {
     if (!rawTime) return '--:00';
     let t = String(rawTime).trim();
     if (t.includes('T')) {
-      const parts = t.split('T');
-      if (parts[1]) t = parts[1].substring(0, 5);
+      const d = new Date(t);
+      if (!isNaN(d.getTime())) {
+        const hour = d.getHours().toString().padStart(2, '0');
+        const min = d.getMinutes().toString().padStart(2, '0');
+        return `${hour}:${min}`;
+      }
+      t = t.split('T')[1].substring(0, 5); 
     }
-    const hour = t.split(':')[0].padStart(2, '0');
-    return `${hour}:00`;
+    if (t.includes(':')) {
+      const parts = t.split(':');
+      if (parts.length >= 2) {
+        return `${parts[0].padStart(2, '0')}:${parts[1].substring(0, 2)}`;
+      }
+    }
+    return '--:00';
   };
 
   const getRouteForDate = (dateStr) => {
@@ -142,8 +146,7 @@ export default function App() {
     const targetTime = formatSafeTime(time);
     
     const route = getRouteForDate(date);
-    const city = route ? route.city : 'Base';
-    const rooms = route ? parseInt(route.rooms) || 99 : 99;
+    const rooms = (route && route.rooms) ? parseInt(route.rooms) : 99;
 
     const doctorConflict = appointments.find(a => {
       if (a.id === currentId) return false; 
@@ -157,22 +160,21 @@ export default function App() {
       );
     });
 
-    if (doctorConflict) return { available: false, reason: 'Especialista Ocupado' };
+    if (doctorConflict) return { available: false, reason: 'Médico Ocupado' };
 
-    if (rooms === 1) {
-      const roomConflict = appointments.find(a => {
-        if (a.id === currentId) return false;
-        const appISO = normalizeToISO(a.date);
-        const appTime = formatSafeTime(a.time);
-        return (
-          appISO === targetISO && 
-          appTime === targetTime && 
-          (a.city === city || a.city === 'Base') &&
-          a.status !== 'Cancelado'
-        );
-      });
-      
-      if (roomConflict) return { available: false, reason: 'Sala Ocupada' };
+    const totalAppointmentsAtSlot = appointments.filter(a => {
+      if (a.id === currentId) return false;
+      const appISO = normalizeToISO(a.date);
+      const appTime = formatSafeTime(a.time);
+      return (
+        appISO === targetISO && 
+        appTime === targetTime && 
+        a.status !== 'Cancelado'
+      );
+    });
+
+    if (totalAppointmentsAtSlot.length >= rooms) {
+      return { available: false, reason: 'Salas Esgotadas' };
     }
 
     return { available: true };
@@ -343,7 +345,7 @@ export default function App() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <input type="text" placeholder="Procurar paciente..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-[#3C8173]" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
-            {/* BOTÃO DE IMPORTAR RESTAURADO AQUI */}
+            {/* BOTÃO DE IMPORTAR */}
             <button onClick={() => setShowBatchModal(true)} className="flex items-center px-4 py-2.5 bg-[#3C8173] text-white font-bold rounded-xl hover:bg-[#2D665B] shadow-sm transition-all active:scale-95">
               <Upload size={18} className="mr-2" /> Importar Lista
             </button>
@@ -466,17 +468,10 @@ export default function App() {
   const renderHome = () => (
     <div className="space-y-12 animate-in fade-in duration-700 pb-20">
       <div className="pt-10 md:pt-16 pb-6 flex flex-col items-center text-center">
+        
+        {/* LOGO LINK EXTERNO */}
         <div className="mb-8 transform hover:scale-105 transition-transform duration-500">
-          <svg width="220" height="110" viewBox="0 0 220 110" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-sm">
-            <path d="M10 90C10 90 50 10 110 10C170 10 210 90 210 90" stroke="#D8B669" strokeWidth="3" strokeLinecap="round"/>
-            <path d="M10 90C40 80 80 95 110 95C140 95 180 80 210 90" fill="#D8B669" fillOpacity="0.1" stroke="#D8B669" strokeWidth="1"/>
-            <path d="M100 35C100 35 90 40 95 55C100 70 110 85 110 85C110 85 120 70 125 55C130 40 120 35 120 35" stroke="#3C8173" strokeWidth="2.5" strokeLinecap="round"/>
-            <circle cx="110" cy="45" r="3" fill="#3C8173"/>
-            <circle cx="110" cy="55" r="2.5" fill="#3C8173"/>
-            <circle cx="110" cy="65" r="2.5" fill="#3C8173"/>
-            <circle cx="110" cy="75" r="2.5" fill="#3C8173"/>
-            <circle cx="110" cy="85" r="2.5" fill="#3C8173"/>
-          </svg>
+          <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=256" alt="WB FisioLife" className="w-32 h-32 object-contain drop-shadow-sm rounded-full" />
         </div>
 
         <div className="flex flex-col items-center gap-1">
@@ -558,7 +553,8 @@ export default function App() {
       <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40 h-20 flex items-center px-4">
         <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
           <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('home')}>
-            <Activity size={24} className="text-[#3C8173] mr-2" />
+            {/* LOGO MENOR LINK EXTERNO */}
+            <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=128" alt="WB FisioLife" className="w-8 h-8 object-contain mr-2 rounded-full" />
             <span className="font-serif font-black text-2xl text-[#1F4C44]">WB<span className="text-[#3C8173]">Fisiolife</span></span>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
@@ -753,7 +749,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL DE IMPORTAÇÃO RESTAURADO */}
+      {/* MODAL DE IMPORTAÇÃO */}
       {showBatchModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -786,7 +782,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE EDICÃO */}
+      {/* MODAL DE EDIÇÃO */}
       {showEditModal && editData && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
