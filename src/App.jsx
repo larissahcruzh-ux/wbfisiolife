@@ -31,6 +31,7 @@ import {
   Upload,
   CheckCircle2
 } from 'lucide-react';
+
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
@@ -337,6 +338,15 @@ export default function App() {
       return formatSafeTime(a.time).localeCompare(formatSafeTime(b.time));
     });
 
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'Confirmado': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'Concluído': return 'bg-green-100 text-green-800 border-green-200';
+        case 'Cancelado': return 'bg-red-100 text-red-800 border-red-200';
+        default: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      }
+    };
+
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
         <div className="p-6 border-b border-gray-100 bg-gray-50 flex flex-col gap-4">
@@ -345,7 +355,6 @@ export default function App() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <input type="text" placeholder="Procurar paciente..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-[#3C8173]" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
-            {/* BOTÃO DE IMPORTAR */}
             <button onClick={() => setShowBatchModal(true)} className="flex items-center px-4 py-2.5 bg-[#3C8173] text-white font-bold rounded-xl hover:bg-[#2D665B] shadow-sm transition-all active:scale-95">
               <Upload size={18} className="mr-2" /> Importar Lista
             </button>
@@ -427,12 +436,19 @@ export default function App() {
                         )}
                       </td>
                       <td className="p-4">
-                        <select className={`text-[10px] font-bold px-2.5 py-1 rounded-full border outline-none cursor-pointer ${app.status === 'Confirmado' ? 'bg-green-50 text-green-700 border-green-200' : app.status === 'Concluído' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`} value={app.status} onChange={async (e) => {
-                          const newStatus = e.target.value;
-                          setAppointments(appointments.map(a => a.id === app.id ? {...a, status: newStatus} : a));
-                          await syncWithGoogleSheets('UPDATE_STATUS', { id: app.id, status: newStatus });
-                        }}>
-                          <option value="Pendente">Pendente</option><option value="Confirmado">Confirmado</option><option value="Concluído">Concluído</option><option value="Cancelado">Cancelado</option>
+                        <select 
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border outline-none cursor-pointer ${getStatusColor(app.status)}`} 
+                          value={app.status} 
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            setAppointments(appointments.map(a => a.id === app.id ? {...a, status: newStatus} : a));
+                            await syncWithGoogleSheets('UPDATE_STATUS', { id: app.id, status: newStatus });
+                          }}
+                        >
+                          <option value="Pendente">Pendente</option>
+                          <option value="Confirmado">Confirmado</option>
+                          <option value="Concluído">Concluído</option>
+                          <option value="Cancelado">Cancelado</option>
                         </select>
                       </td>
                       <td className="p-4 text-center">
@@ -469,7 +485,6 @@ export default function App() {
     <div className="space-y-12 animate-in fade-in duration-700 pb-20">
       <div className="pt-10 md:pt-16 pb-6 flex flex-col items-center text-center">
         
-        {/* LOGO LINK EXTERNO */}
         <div className="mb-8 transform hover:scale-105 transition-transform duration-500">
           <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=256" alt="WB FisioLife" className="w-32 h-32 object-contain drop-shadow-sm rounded-full" />
         </div>
@@ -553,16 +568,15 @@ export default function App() {
       <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40 h-20 flex items-center px-4">
         <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
           <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('home')}>
-            {/* LOGO MENOR LINK EXTERNO */}
             <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=128" alt="WB FisioLife" className="w-8 h-8 object-contain mr-2 rounded-full" />
             <span className="font-serif font-black text-2xl text-[#1F4C44]">WB<span className="text-[#3C8173]">Fisiolife</span></span>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <button onClick={() => setCurrentView('home')} className={`p-3 rounded-2xl transition-all ${currentView === 'home' ? 'bg-[#E5F0ED] text-[#2D665B]' : 'text-gray-400 hover:bg-gray-50'}`}><Home size={20}/></button>
-            <button onClick={() => setCurrentView('config')} className={`flex items-center gap-2 px-4 py-2 rounded-2xl transition-all font-bold text-sm ${currentView === 'config' ? 'bg-[#3C8173] text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+            <button onClick={() => setCurrentView('config')} className={`flex items-center gap-2 px-4 py-2 rounded-2xl transition-all font-bold text-sm ${currentView === 'config' ? 'bg-[#3C8173] text-[#F4F9F8]' : 'text-gray-400 hover:bg-gray-50'}`}>
               <MapIcon size={18}/> <span className="hidden sm:inline">Roteiros</span>
             </button>
-            <button onClick={() => { setCurrentView('marcar'); setStep(1); }} className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-sm ${currentView === 'marcar' ? 'bg-[#3C8173] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Nova Marcação</button>
+            <button onClick={() => { setCurrentView('marcar'); setStep(1); }} className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-sm ${currentView === 'marcar' ? 'bg-[#3C8173] text-[#F4F9F8]' : 'text-gray-600 hover:bg-gray-50'}`}>Nova Marcação</button>
           </div>
         </div>
       </nav>
@@ -741,7 +755,7 @@ export default function App() {
                   <input type="text" required placeholder="Nome do Paciente" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none" value={bookingData.name} onChange={e => setBookingData({...bookingData, name: e.target.value})} />
                   <input type="tel" required placeholder="WhatsApp" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none" value={bookingData.phone} onChange={e => setBookingData({...bookingData, phone: e.target.value})} />
                   <textarea placeholder="Observações..." rows="3" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none resize-none" value={bookingData.obs} onChange={e => setBookingData({...bookingData, obs: e.target.value})} />
-                  <div className="flex justify-between mt-12 pt-8 border-t"><button type="button" onClick={() => setStep(2)} className="px-8 py-4 font-bold text-gray-400">Voltar</button><button type="submit" className="px-12 py-4 bg-[#D8B669] text-gray-900 font-bold rounded-2xl shadow-xl hover:bg-[#c2a25c] transition-all transform hover:scale-105">Confirmar</button></div>
+                  <div className="flex justify-between mt-12 pt-8 border-t"><button type="button" onClick={() => setStep(2)} className="px-8 py-4 font-bold text-gray-400">Voltar</button><button type="submit" className="px-12 py-4 bg-[#3C8173] text-white font-bold rounded-2xl shadow-xl hover:bg-[#c2a25c] transition-all transform hover:scale-105">Confirmar</button></div>
                 </form>
               )}
             </div>
