@@ -157,7 +157,8 @@ export default function App() {
         appISO === targetISO && 
         appTime === targetTime && 
         a.doctor === doctor &&
-        a.status !== 'Cancelado'
+        a.status !== 'Cancelado' &&
+        a.status !== 'Não Compareceu'
       );
     });
 
@@ -170,7 +171,8 @@ export default function App() {
       return (
         appISO === targetISO && 
         appTime === targetTime && 
-        a.status !== 'Cancelado'
+        a.status !== 'Cancelado' &&
+        a.status !== 'Não Compareceu'
       );
     });
 
@@ -338,144 +340,210 @@ export default function App() {
       return formatSafeTime(a.time).localeCompare(formatSafeTime(b.time));
     });
 
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'Confirmado': return 'bg-blue-100 text-blue-800 border-blue-200';
-        case 'Concluído': return 'bg-green-100 text-green-800 border-green-200';
-        case 'Cancelado': return 'bg-red-100 text-red-800 border-red-200';
-        default: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    // Filtros para as colunas
+    const pendentes = filtered.filter(a => a.status === 'Pendente');
+    const confirmados = filtered.filter(a => a.status === 'Confirmado');
+    const concluidos = filtered.filter(a => a.status === 'Concluído');
+    const cancelados = filtered.filter(a => a.status === 'Cancelado' || a.status === 'Não Compareceu');
+
+    // Estatísticas do topo
+    const todayISO = new Date().toISOString().split('T')[0];
+    const statsHoje = appointments.filter(a => normalizeToISO(a.date) === todayISO).length;
+    const statsPendentes = appointments.filter(a => a.status === 'Pendente').length;
+    const statsConcluidos = appointments.filter(a => a.status === 'Concluído').length;
+    const statsTotal = appointments.length;
+
+    const renderCard = (app) => {
+      const [hour, min] = formatSafeTime(app.time).split(':');
+      let colorClass = 'bg-gray-500';
+      let badgeClass = 'text-gray-600 border-gray-200';
+
+      if (app.status === 'Pendente') { 
+        colorClass = 'bg-[#F59E0B]'; badgeClass = 'text-[#F59E0B] border-[#F59E0B]/30'; 
+      } else if (app.status === 'Confirmado') { 
+        colorClass = 'bg-blue-500'; badgeClass = 'text-blue-600 border-blue-500/30'; 
+      } else if (app.status === 'Concluído') { 
+        colorClass = 'bg-[#10B981]'; badgeClass = 'text-[#10B981] border-[#10B981]/30'; 
+      } else { 
+        colorClass = 'bg-red-500'; badgeClass = 'text-red-600 border-red-500/30'; 
       }
+
+      return (
+        <div key={app.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col sm:flex-row gap-5 hover:shadow-md transition-shadow">
+          {/* Caixa de Hora (Quadrado com cantos arredondados igual a imagem) */}
+          <div className={`${colorClass} text-white rounded-2xl w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center shadow-sm`}>
+            <span className="text-xl font-black leading-none">{hour}</span>
+            <span className="text-xs font-bold opacity-80">{min}</span>
+          </div>
+
+          {/* Conteúdo Principal Flexível */}
+          <div className="flex-1 flex flex-col justify-center min-w-0">
+            {/* Topo: Nome e Badge */}
+            <div className="flex justify-between items-start mb-4 gap-2">
+              <h4 className="font-bold text-gray-800 text-lg leading-tight truncate">{app.name}</h4>
+              <select 
+                className={`text-[11px] font-bold px-4 py-1.5 rounded-full border outline-none cursor-pointer text-center appearance-none shrink-0 bg-transparent ${badgeClass}`} 
+                value={app.status} 
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  setAppointments(appointments.map(a => a.id === app.id ? {...a, status: newStatus} : a));
+                  await syncWithGoogleSheets('UPDATE_STATUS', { id: app.id, status: newStatus });
+                }}
+              >
+                <option value="Pendente">Pendente</option>
+                <option value="Confirmado">Confirmado</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Cancelado">Cancelado</option>
+                <option value="Não Compareceu">Não Compareceu</option>
+              </select>
+            </div>
+
+            {/* Linha Inferior: Informações e Botões */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-auto">
+              {/* Grade de Dados */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+                <div>
+                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Data</p>
+                  <p className="font-medium text-gray-700 text-xs truncate">{formatSafeDate(app.date)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Profissional</p>
+                  <p className="font-medium text-gray-700 text-xs truncate">{app.doctor}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Cidade</p>
+                  <p className="font-medium text-gray-700 text-xs truncate">{app.city}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Telefone</p>
+                  <p className="font-medium text-gray-700 text-xs truncate">{app.phone}</p>
+                </div>
+              </div>
+
+              {/* Botões de Ação Fixos no Fluxo (Não sobrepõem o texto) */}
+              <div className="flex items-center gap-2 flex-shrink-0 mt-3 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-gray-100">
+                {deleteConfirmId === app.id ? (
+                  <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 animate-in fade-in">
+                    <span className="text-[10px] text-red-500 font-bold uppercase px-1">Excluir?</span>
+                    <button onClick={() => confirmDeleteAppointment(app.id)} className="px-2.5 py-1.5 bg-red-600 text-white text-[10px] font-bold rounded-lg hover:bg-red-700">Sim</button>
+                    <button onClick={() => setDeleteConfirmId(null)} className="px-2.5 py-1.5 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-lg hover:bg-gray-300">Não</button>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => sendWhatsApp('lembrete', app)} className="p-1.5 text-gray-400 hover:text-[#3C8173] hover:bg-gray-50 rounded-lg transition-colors" title="Enviar Lembrete"><Bell size={18} strokeWidth={2} /></button>
+                    <button onClick={() => sendWhatsApp('confirmacao', app)} className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-gray-50 rounded-lg transition-colors" title="Pedir Confirmação"><MessageSquare size={18} strokeWidth={2} /></button>
+                    <button onClick={() => { setEditData({ ...app }); setShowEditModal(true); }} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-50 rounded-lg transition-colors" title="Editar"><Edit2 size={18} strokeWidth={2} /></button>
+                    <button onClick={() => setDeleteConfirmId(app.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={18} strokeWidth={2} /></button>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {/* Observações Abaixo (Opcional) */}
+            {app.obs && (
+              <div className="mt-4 text-[11px] text-yellow-800 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100 flex items-start gap-2">
+                <MessageSquareQuote size={14} className="text-yellow-500 shrink-0 mt-0.5" />
+                <span>{app.obs}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const renderGroup = (title, items, dotColor) => {
+      if (items.length === 0) return null;
+      return (
+        <div className="mb-8 animate-in fade-in">
+          <div className="flex items-center gap-2 mb-4 px-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></div>
+            <h3 className="text-gray-500 font-bold text-sm">{title}</h3>
+          </div>
+          <div className="space-y-4">
+            {items.map(app => renderCard(app))}
+          </div>
+        </div>
+      );
     };
 
     return (
-      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[250px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="text" placeholder="Procurar paciente..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-[#3C8173]" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            </div>
-            <button onClick={() => setShowBatchModal(true)} className="flex items-center px-4 py-2.5 bg-[#3C8173] text-white font-bold rounded-xl hover:bg-[#2D665B] shadow-sm transition-all active:scale-95">
-              <Upload size={18} className="mr-2" /> Importar Lista
-            </button>
+      <div className="flex flex-col gap-6">
+        {/* Barra de Filtros */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input type="text" placeholder="Procurar paciente..." className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200 outline-none focus:border-[#3C8173] transition-colors" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-300">
-              <CalendarCheck size={16} className="text-gray-400"/><input type="date" className="text-sm outline-none bg-transparent" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-              {filterDate && <button onClick={() => setFilterDate('')} className="text-gray-300 hover:text-red-400"><XCircle size={14}/></button>}
-            </div>
-            <select className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium" value={filterCity} onChange={e => setFilterCity(e.target.value)}>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <select className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#3C8173]" value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)}>
+              <option value="Todos">Todos Profissionais</option>
+              <option value="Dr. Willian">Dr. Willian</option>
+              <option value="Dra. Bianca">Dra. Bianca</option>
+            </select>
+            
+            <select className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#3C8173]" value={filterCity} onChange={e => setFilterCity(e.target.value)}>
               <option value="Todas">Todas Cidades</option>
               {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium" value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)}>
-              <option value="Todos">Médicos</option><option value="Dr. Willian">Dr. Willian</option><option value="Dra. Bianca">Dra. Bianca</option>
+            
+            <select className="px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#3C8173]" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="Todos">Todos Status</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Confirmado">Confirmado</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Cancelado">Cancelado</option>
+              <option value="Não Compareceu">Não Compareceu</option>
             </select>
-            <select className="px-4 py-2 rounded-xl border border-gray-300 text-sm font-medium" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-              <option value="Todos">Status</option><option value="Pendente">Pendente</option><option value="Confirmado">Confirmado</option><option value="Concluído">Concluído</option><option value="Cancelado">Cancelado</option>
-            </select>
-            <button onClick={() => { setSearchTerm(''); setFilterDoctor('Todos'); setFilterStatus('Todos'); setFilterCity('Todas'); setFilterDate(''); }} className="p-2 text-gray-400 hover:text-red-500"><RefreshCw size={18}/></button>
+            
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-200">
+              <CalendarCheck size={14} className="text-gray-400"/>
+              <input type="date" className="text-sm outline-none bg-transparent" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+              {filterDate && <button onClick={() => setFilterDate('')} className="text-gray-300 hover:text-red-400"><XCircle size={14}/></button>}
+            </div>
+
+            <button onClick={() => { setSearchTerm(''); setFilterDoctor('Todos'); setFilterStatus('Todos'); setFilterCity('Todas'); setFilterDate(''); }} className="p-2 text-gray-400 hover:text-[#3C8173] bg-gray-50 rounded-xl" title="Limpar Filtros"><RefreshCw size={16}/></button>
+            <button onClick={() => setShowBatchModal(true)} className="p-2 text-white bg-[#3C8173] hover:bg-[#2D665B] rounded-xl shadow-sm transition-all" title="Importar Lista"><Upload size={16} /></button>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-white border-b border-gray-100 text-[10px] text-gray-400 uppercase tracking-widest">
-                <th className="p-4 font-bold">Paciente</th>
-                <th className="p-4 font-bold">Agenda</th>
-                <th className="p-4 font-bold">Local e Salas</th>
-                <th className="p-4 font-bold">Status</th>
-                <th className="p-4 font-bold text-center">Mensagens</th>
-                <th className="p-4 font-bold text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="p-20 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                      <FileUp size={48} className="text-gray-200" />
-                      <p className="text-gray-400 italic">Nenhum agendamento encontrado.</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map(app => {
-                  const route = getRouteForDate(app.date);
-                  return (
-                    <tr key={app.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="p-4">
-                        <div className="font-bold text-gray-800">{app.name}</div>
-                        <div className="text-xs text-gray-500">{app.phone}</div>
-                        {app.obs && (
-                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded-lg text-[11px] text-yellow-800 flex items-start shadow-sm">
-                            <MessageSquareQuote size={12} className="mr-1.5 mt-0.5 shrink-0 opacity-60" />
-                            <span className="leading-tight">{app.obs}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="text-sm font-bold text-[#1F4C44] flex items-center">
-                           <CalendarIcon size={14} className="mr-1.5 opacity-40"/>
-                           {formatSafeDate(app.date)}
-                        </div>
-                        <div className="text-xs text-gray-400 font-bold mt-2 flex items-center">
-                          <Clock size={12} className="mr-1.5 opacity-40"/>
-                          {formatSafeTime(app.time)}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-sm font-medium text-gray-700">{app.doctor}</div>
-                        <div className="text-xs text-[#3C8173] font-bold flex items-center mt-1.5">
-                          <MapPin size={12} className="mr-1.5 opacity-70"/> {app.city}
-                        </div>
-                        {route && (
-                          <div className="inline-flex items-center mt-2 px-2 py-0.5 rounded-lg bg-[#E5F0ED] text-[#1F4C44] text-[10px] font-bold">
-                            <DoorOpen size={12} className="mr-1" /> {route.rooms} Salas
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <select 
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border outline-none cursor-pointer ${getStatusColor(app.status)}`} 
-                          value={app.status} 
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            setAppointments(appointments.map(a => a.id === app.id ? {...a, status: newStatus} : a));
-                            await syncWithGoogleSheets('UPDATE_STATUS', { id: app.id, status: newStatus });
-                          }}
-                        >
-                          <option value="Pendente">Pendente</option>
-                          <option value="Confirmado">Confirmado</option>
-                          <option value="Concluído">Concluído</option>
-                          <option value="Cancelado">Cancelado</option>
-                        </select>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => sendWhatsApp('confirmacao', app)} className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-all" title="Confirmação"><MessageSquare size={18} /></button>
-                          <button onClick={() => sendWhatsApp('lembrete', app)} className="p-2 text-[#3C8173] hover:bg-green-100 rounded-xl transition-all" title="Lembrete"><Bell size={18} /></button>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        {deleteConfirmId === app.id ? (
-                          <div className="flex items-center justify-end gap-2 animate-in fade-in">
-                            <button onClick={() => confirmDeleteAppointment(app.id)} className="px-3 py-1 bg-red-600 text-white text-[10px] font-bold rounded-lg">Eliminar</button>
-                            <button onClick={() => setDeleteConfirmId(null)} className="px-3 py-1 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-lg">Sair</button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => { setEditData({ ...app }); setShowEditModal(true); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={18} /></button>
-                            <button onClick={() => setDeleteConfirmId(app.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+
+        {/* Cards de Resumo */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Hoje</span>
+            <span className="text-2xl font-black text-gray-800 mt-1">{statsHoje}</span>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Pendentes</span>
+            <span className="text-2xl font-black text-[#F59E0B] mt-1">{statsPendentes}</span>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Concluídos</span>
+            <span className="text-2xl font-black text-[#10B981] mt-1">{statsConcluidos}</span>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total</span>
+            <span className="text-2xl font-black text-gray-800 mt-1">{statsTotal}</span>
+          </div>
+        </div>
+
+        {/* Lista Agrupada de Pacientes */}
+        <div className="mt-4">
+          {filtered.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
+              <div className="flex flex-col items-center gap-4">
+                <FileUp size={48} className="text-gray-200" />
+                <p className="text-gray-400 text-sm">Nenhum agendamento encontrado.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {renderGroup('Pendentes', pendentes, 'bg-[#F59E0B]')}
+              {renderGroup('Confirmados', confirmados, 'bg-blue-500')}
+              {renderGroup('Concluídos', concluidos, 'bg-[#10B981]')}
+              {renderGroup('Cancelados / Não Compareceram', cancelados, 'bg-red-500')}
+            </>
+          )}
         </div>
       </div>
     );
