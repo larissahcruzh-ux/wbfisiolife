@@ -267,7 +267,7 @@ export default function App() {
   };
 
   const handleBookingSubmit = async (e) => {
-    e.preventDefault();
+    if(e) e.preventDefault();
     const newAppointment = { ...bookingData, id: Date.now() };
     setAppointments([...appointments, newAppointment]);
     await syncWithGoogleSheets('ADD_APPOINTMENT', newAppointment);
@@ -370,15 +370,12 @@ export default function App() {
 
       return (
         <div key={app.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col sm:flex-row gap-5 hover:shadow-md transition-shadow">
-          {/* Caixa de Hora (Quadrado com cantos arredondados igual a imagem) */}
           <div className={`${colorClass} text-white rounded-2xl w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center shadow-sm`}>
             <span className="text-xl font-black leading-none">{hour}</span>
             <span className="text-xs font-bold opacity-80">{min}</span>
           </div>
 
-          {/* Conteúdo Principal Flexível */}
           <div className="flex-1 flex flex-col justify-center min-w-0">
-            {/* Topo: Nome e Badge */}
             <div className="flex justify-between items-start mb-4 gap-2">
               <h4 className="font-bold text-gray-800 text-lg leading-tight truncate">{app.name}</h4>
               <select 
@@ -398,9 +395,7 @@ export default function App() {
               </select>
             </div>
 
-            {/* Linha Inferior: Informações e Botões */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-auto">
-              {/* Grade de Dados */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
                 <div>
                   <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Data</p>
@@ -420,7 +415,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Botões de Ação Fixos no Fluxo (Não sobrepõem o texto) */}
               <div className="flex items-center gap-2 flex-shrink-0 mt-3 md:mt-0 pt-3 md:pt-0 border-t md:border-0 border-gray-100">
                 {deleteConfirmId === app.id ? (
                   <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 animate-in fade-in">
@@ -439,7 +433,6 @@ export default function App() {
               </div>
             </div>
             
-            {/* Observações Abaixo (Opcional) */}
             {app.obs && (
               <div className="mt-4 text-[11px] text-yellow-800 bg-yellow-50 p-2.5 rounded-lg border border-yellow-100 flex items-start gap-2">
                 <MessageSquareQuote size={14} className="text-yellow-500 shrink-0 mt-0.5" />
@@ -713,38 +706,44 @@ export default function App() {
 
         {/* MARCAÇÃO PASSO A PASSO */}
         {currentView === 'marcar' && (
-          <div className="max-w-4xl mx-auto bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10">
-            <div className="bg-[#2D665B] p-10 text-white text-center">
-              <h2 className="text-4xl font-serif font-bold">Nova Marcação</h2>
-              <div className="flex justify-center mt-10 gap-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${step >= i ? 'bg-[#D8B669] border-[#D8B669] text-gray-900' : 'border-white/20 text-white/40'}`}>{i}</div>
+          <div className="max-w-3xl mx-auto bg-white rounded-3xl md:rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-10">
+            <div className="bg-white border-b border-gray-100 p-6 md:p-8 text-center relative">
+              <h2 className="text-2xl md:text-3xl font-serif font-bold text-[#1F4C44]">Nova Marcação</h2>
+              <div className="flex justify-center mt-4 md:mt-6 gap-2 md:gap-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-bold transition-all ${step >= i ? 'bg-[#3C8173] text-white shadow-md' : 'bg-gray-100 text-gray-400'}`}>{i}</div>
                 ))}
               </div>
             </div>
-            <div className="p-12">
+            
+            <div className="p-4 sm:p-6 md:p-8">
               {step === 1 && (
                 <div className="animate-in fade-in slide-in-from-bottom-5">
-                  <h3 className="text-2xl font-serif font-bold text-gray-800 text-center mb-10">Escolha o Especialista</h3>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <button onClick={() => { setBookingData({ ...bookingData, doctor: 'Dr. Willian' }); setStep(2); }} className="bg-gray-50 p-10 rounded-[2.5rem] border-2 border-transparent hover:border-[#3C8173] hover:bg-white transition-all flex flex-col items-center group">
-                      <div className="w-24 h-24 bg-[#E5F0ED] rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110"><span className="text-5xl font-serif font-black text-[#3C8173]">W</span></div>
-                      <h4 className="text-2xl font-serif font-bold text-gray-800">Dr. Willian</h4><p className="text-gray-400 mt-2 text-sm italic">Quiropraxista</p>
+                  <h3 className="text-lg md:text-xl font-bold text-gray-800 text-center mb-6">Escolha o Especialista</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <button onClick={() => { setBookingData({ ...bookingData, doctor: 'Dr. Willian' }); setStep(2); }} className="bg-gray-50 p-6 md:p-8 rounded-[2rem] border border-gray-100 hover:border-[#3C8173] hover:bg-[#F4F9F8] transition-all flex flex-col items-center group shadow-sm">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-white shadow-sm rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110"><span className="text-3xl md:text-4xl font-serif font-black text-[#3C8173]">W</span></div>
+                      <h4 className="text-lg md:text-xl font-bold text-gray-800">Dr. Willian</h4><p className="text-gray-500 mt-1 text-xs md:text-sm">Quiropraxista</p>
                     </button>
-                    <button onClick={() => { setBookingData({ ...bookingData, doctor: 'Dra. Bianca' }); setStep(2); }} className="bg-gray-50 p-10 rounded-[2.5rem] border-2 border-transparent hover:border-[#3C8173] hover:bg-white transition-all flex flex-col items-center group">
-                      <div className="w-24 h-24 bg-[#E5F0ED] rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110"><span className="text-5xl font-serif font-black text-[#3C8173]">B</span></div>
-                      <h4 className="text-2xl font-serif font-bold text-gray-800">Dra. Bianca</h4><p className="text-gray-400 mt-2 text-sm italic">Fisioterapeuta</p>
+                    <button onClick={() => { setBookingData({ ...bookingData, doctor: 'Dra. Bianca' }); setStep(2); }} className="bg-gray-50 p-6 md:p-8 rounded-[2rem] border border-gray-100 hover:border-[#3C8173] hover:bg-[#F4F9F8] transition-all flex flex-col items-center group shadow-sm">
+                      <div className="w-16 h-16 md:w-20 md:h-20 bg-white shadow-sm rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110"><span className="text-3xl md:text-4xl font-serif font-black text-[#3C8173]">B</span></div>
+                      <h4 className="text-lg md:text-xl font-bold text-gray-800">Dra. Bianca</h4><p className="text-gray-500 mt-1 text-xs md:text-sm">Fisioterapeuta</p>
                     </button>
                   </div>
                 </div>
               )}
+              
               {step === 2 && (
                 <div className="animate-in fade-in slide-in-from-right-5">
-                  <div className="flex items-center justify-between mb-8 bg-gray-50 p-4 rounded-2xl">
-                    <h3 className="text-lg font-bold uppercase text-[#1F4C44]">{viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h3>
-                    <div className="flex gap-2"><button onClick={() => changeMonth(-1)} className="p-2 text-[#3C8173] hover:bg-white rounded-xl"><ChevronLeftCircle size={24}/></button><button onClick={() => changeMonth(1)} className="p-2 text-[#3C8173] hover:bg-white rounded-xl"><ChevronRightCircle size={24}/></button></div>
+                  <div className="flex items-center justify-between mb-4 md:mb-6 bg-gray-50 border border-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl">
+                    <h3 className="text-sm md:text-base font-bold uppercase text-[#1F4C44]">{viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h3>
+                    <div className="flex gap-2">
+                      <button onClick={() => changeMonth(-1)} className="p-1.5 text-gray-400 hover:text-[#3C8173] hover:bg-white rounded-lg transition-colors"><ChevronLeftCircle size={22}/></button>
+                      <button onClick={() => changeMonth(1)} className="p-1.5 text-gray-400 hover:text-[#3C8173] hover:bg-white rounded-lg transition-colors"><ChevronRightCircle size={22}/></button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 md:grid-cols-7 gap-2 mb-10">
+                  
+                  <div className="grid grid-cols-4 md:grid-cols-7 gap-2 mb-6">
                     {getDaysInMonth(viewDate).map((d) => {
                       const dateStr = d.toISOString().split('T')[0];
                       const route = getRouteForDate(dateStr);
@@ -753,19 +752,23 @@ export default function App() {
                         <button 
                           key={dateStr} 
                           onClick={() => setBookingData({ ...bookingData, date: dateStr, city: route ? route.city : 'Base' })} 
-                          className={`p-3 rounded-2xl border flex flex-col items-center justify-between transition-all min-h-[110px] sm:min-h-[130px] ${isSelected ? 'bg-[#3C8173] text-white shadow-lg scale-105 border-transparent' : 'bg-white hover:border-[#3C8173] border-gray-100'}`}
+                          className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border flex flex-col items-center justify-between transition-all min-h-[90px] sm:min-h-[110px] ${
+                            isSelected 
+                            ? 'bg-[#F4F9F8] border-[#3C8173] text-[#1F4C44] shadow-sm scale-[1.02]' 
+                            : 'bg-white hover:border-[#82BCAE] border-gray-100 text-gray-600'
+                          }`}
                         >
                           <div className="flex flex-col items-center">
                             <span className="text-[9px] font-bold opacity-60 uppercase mb-0.5">{d.toLocaleDateString('pt-BR', { weekday: 'short' }).substring(0,2)}</span>
-                            <span className="text-xl sm:text-2xl font-black">{d.getDate()}</span>
+                            <span className="text-xl sm:text-2xl font-bold">{d.getDate()}</span>
                           </div>
                           
                           <div className="w-full text-center mt-1">
-                            <div className={`text-[9px] sm:text-[10px] font-bold leading-tight break-words px-0.5 uppercase mb-1 ${isSelected ? 'text-white' : 'text-[#3C8173]'}`}>
+                            <div className={`text-[8px] sm:text-[9px] font-bold leading-tight break-words px-0.5 uppercase mb-1 ${isSelected ? 'text-[#3C8173]' : 'text-gray-400'}`}>
                               {route ? route.city : 'Base'}
                             </div>
                             {route && (
-                              <div className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-lg inline-block ${isSelected ? 'bg-[#2D665B] text-white' : 'bg-[#E5F0ED] text-[#1F4C44]'}`}>
+                              <div className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-lg inline-block ${isSelected ? 'bg-[#E5F0ED] text-[#1F4C44]' : 'bg-gray-100 text-gray-500'}`}>
                                 {route.rooms} Salas
                               </div>
                             )}
@@ -776,13 +779,13 @@ export default function App() {
                   </div>
 
                   {bookingData.date && (
-                    <div className="animate-in fade-in pt-4">
-                        <div className="flex items-center gap-2 mb-6 p-3 bg-blue-50 text-blue-700 rounded-2xl text-[11px] font-bold border border-blue-100">
-                           <span className="animate-pulse flex items-center gap-1.5"><Info size={16} /> </span>
+                    <div className="animate-in fade-in pt-2">
+                        <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 text-gray-600 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold border border-gray-100 leading-tight">
+                           <span className="flex items-center gap-1.5 shrink-0 text-[#3C8173]"><Info size={16} /> </span>
                            Horários ocupados ou sem salas disponíveis são bloqueados automaticamente.
                         </div>
 
-                        <div className="flex flex-wrap gap-3 justify-center">
+                        <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
                             {TIME_SLOTS.map(time => {
                               const check = checkSlotAvailability(bookingData.doctor, bookingData.date, time);
                               const isSelected = bookingData.time === time;
@@ -792,12 +795,12 @@ export default function App() {
                                   key={time} 
                                   disabled={!check.available}
                                   onClick={() => setBookingData({ ...bookingData, time })} 
-                                  className={`relative px-6 py-4 rounded-2xl text-sm font-bold transition-all flex flex-col items-center min-w-[110px] ${
+                                  className={`relative px-3 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold transition-all flex flex-col items-center min-w-[80px] md:min-w-[100px] border ${
                                     isSelected 
-                                    ? 'bg-[#3C8173] text-white shadow-lg' 
+                                    ? 'bg-[#F4F9F8] border-[#3C8173] text-[#1F4C44] shadow-sm' 
                                     : !check.available 
-                                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed border-dashed border-2 border-gray-200 opacity-60' 
-                                      : 'bg-white border border-gray-200 hover:border-[#3C8173] hover:text-[#3C8173]'
+                                      ? 'bg-gray-50 text-gray-300 cursor-not-allowed border-dashed border-gray-200 opacity-60' 
+                                      : 'bg-white border-gray-100 hover:border-[#82BCAE] hover:text-[#3C8173] text-gray-600'
                                   }`}
                                 >
                                   <span>{time}</span>
@@ -812,20 +815,82 @@ export default function App() {
                         </div>
                     </div>
                   )}
-                  <div className="flex justify-between mt-12 pt-8 border-t"><button onClick={() => setStep(1)} className="px-8 py-4 font-bold text-gray-400">Voltar</button><button onClick={() => setStep(3)} disabled={!bookingData.date || !bookingData.time} className="px-12 py-4 bg-[#D8B669] text-gray-900 font-bold rounded-2xl shadow-xl disabled:opacity-50">Continuar</button></div>
+                  
+                  <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
+                    <button onClick={() => setStep(1)} className="px-5 py-2.5 text-sm md:text-base md:px-6 md:py-3 font-bold text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
+                    <button onClick={() => setStep(3)} disabled={!bookingData.date || !bookingData.time} className="px-6 py-2.5 text-sm md:text-base md:px-8 md:py-3 bg-[#3C8173] text-white font-bold rounded-xl shadow-md disabled:opacity-50 hover:bg-[#2D665B] transition-colors">Continuar</button>
+                  </div>
                 </div>
               )}
+              
               {step === 3 && (
-                <form onSubmit={handleBookingSubmit} className="animate-in fade-in slide-in-from-right-5 space-y-6">
-                  <div className="p-6 bg-[#F4F9F8] rounded-[2rem] border border-[#E5F0ED] grid grid-cols-2 gap-4 text-sm font-bold text-[#1F4C44]">
+                <form onSubmit={(e) => { e.preventDefault(); setStep(4); }} className="animate-in fade-in slide-in-from-right-5 space-y-4">
+                  <h3 className="text-lg md:text-xl font-bold text-gray-800 text-center mb-6">Dados do Paciente</h3>
+                  <div className="p-4 bg-[#F4F9F8] rounded-2xl border border-[#E5F0ED] flex flex-col md:grid md:grid-cols-2 gap-3 text-xs md:text-sm font-bold text-[#1F4C44] mb-4">
                     <div>🩺 {bookingData.doctor}</div><div>📅 {formatSafeDate(bookingData.date)} às {bookingData.time}</div><div>📍 {bookingData.city}</div>
                   </div>
-                  <input type="text" required placeholder="Nome do Paciente" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none" value={bookingData.name} onChange={e => setBookingData({...bookingData, name: e.target.value})} />
-                  <input type="tel" required placeholder="WhatsApp" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none" value={bookingData.phone} onChange={e => setBookingData({...bookingData, phone: e.target.value})} />
-                  <textarea placeholder="Observações..." rows="3" className="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173] outline-none resize-none" value={bookingData.obs} onChange={e => setBookingData({...bookingData, obs: e.target.value})} />
-                  <div className="flex justify-between mt-12 pt-8 border-t"><button type="button" onClick={() => setStep(2)} className="px-8 py-4 font-bold text-gray-400">Voltar</button><button type="submit" className="px-12 py-4 bg-[#3C8173] text-white font-bold rounded-2xl shadow-xl hover:bg-[#c2a25c] transition-all transform hover:scale-105">Confirmar</button></div>
+                  <input type="text" required placeholder="Nome do Paciente" className="w-full px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl bg-gray-50 border border-gray-100 focus:border-[#3C8173] outline-none text-sm md:text-base text-gray-700" value={bookingData.name} onChange={e => setBookingData({...bookingData, name: e.target.value})} />
+                  <input type="tel" required placeholder="WhatsApp" className="w-full px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl bg-gray-50 border border-gray-100 focus:border-[#3C8173] outline-none text-sm md:text-base text-gray-700" value={bookingData.phone} onChange={e => setBookingData({...bookingData, phone: e.target.value})} />
+                  <textarea placeholder="Observações (Opcional)..." rows="3" className="w-full px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl bg-gray-50 border border-gray-100 focus:border-[#3C8173] outline-none resize-none text-sm md:text-base text-gray-700" value={bookingData.obs} onChange={e => setBookingData({...bookingData, obs: e.target.value})} />
+                  <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
+                    <button type="button" onClick={() => setStep(2)} className="px-5 py-2.5 text-sm md:text-base md:px-6 md:py-3 font-bold text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
+                    <button type="submit" className="px-6 py-2.5 text-sm md:text-base md:px-8 md:py-3 bg-[#3C8173] text-white font-bold rounded-xl shadow-md hover:bg-[#2D665B] transition-all transform hover:scale-105">Revisar</button>
+                  </div>
                 </form>
               )}
+
+              {step === 4 && (
+                <div className="animate-in fade-in slide-in-from-right-5">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#1F4C44] text-center mb-6">Confirme os Dados</h3>
+                  
+                  <div className="bg-white border border-gray-100 rounded-3xl shadow-sm p-6 md:p-8 space-y-4 md:space-y-6">
+                    <div className="flex items-center gap-4 pb-4 border-b border-gray-50">
+                       <div className="w-12 h-12 bg-[#E5F0ED] rounded-full flex items-center justify-center text-[#3C8173] shrink-0">
+                          <CheckCircle2 size={24} />
+                       </div>
+                       <div className="overflow-hidden">
+                         <p className="text-[10px] uppercase font-bold text-gray-400">Paciente</p>
+                         <p className="text-lg font-bold text-gray-800 truncate">{bookingData.name}</p>
+                         <p className="text-sm text-gray-500 truncate">{bookingData.phone}</p>
+                       </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                       <div>
+                         <p className="text-[10px] uppercase font-bold text-gray-400">Especialista</p>
+                         <p className="text-sm font-bold text-[#1F4C44] truncate">{bookingData.doctor}</p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] uppercase font-bold text-gray-400">Local</p>
+                         <p className="text-sm font-bold text-[#1F4C44] truncate">{bookingData.city}</p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] uppercase font-bold text-gray-400">Data</p>
+                         <p className="text-sm font-bold text-[#1F4C44] truncate">{formatSafeDate(bookingData.date)}</p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] uppercase font-bold text-gray-400">Horário</p>
+                         <p className="text-sm font-bold text-[#1F4C44] truncate">{bookingData.time}</p>
+                       </div>
+                    </div>
+                    
+                    {bookingData.obs && (
+                       <div className="pt-4 border-t border-gray-50">
+                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Observações</p>
+                         <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 p-3 rounded-xl">{bookingData.obs}</p>
+                       </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
+                    <button type="button" onClick={() => setStep(3)} className="px-5 py-2.5 text-sm md:text-base md:px-6 md:py-3 font-bold text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
+                    <button onClick={handleBookingSubmit} className="px-6 py-2.5 text-sm md:text-base md:px-8 md:py-3 bg-[#D8B669] text-gray-900 font-bold rounded-xl shadow-md hover:bg-[#c2a25c] transition-all transform hover:scale-105 flex items-center gap-2">
+                      <Check size={18} /> Confirmar
+                    </button>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         )}
