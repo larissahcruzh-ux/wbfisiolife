@@ -37,8 +37,6 @@ import {
 // ==========================================
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIpBz0aS-C5AezGwWf2LecNtzIuNHqpQucCTcIJ72_dpgXu4rG4yHnaLp8Gs3f3brgA/exec"; 
 
-const TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
-
 export default function App() {
   // --- Estados Principais ---
   const [currentView, setCurrentView] = useState('home'); 
@@ -78,11 +76,32 @@ export default function App() {
     doctor: '', date: '', time: '', name: '', phone: '', city: '', status: 'Pendente', obs: ''
   });
 
-  const [routeForm, setRouteForm] = useState({ date: '', city: '', rooms: 1 });
+  const [routeForm, setRouteForm] = useState({ 
+    date: '', 
+    city: '', 
+    rooms: 1,
+    startTime: '08:00',
+    endTime: '21:00',
+    shiftSplitTime: '13:00',
+    morningRooms: 1,
+    afternoonRooms: 2
+  });
 
   // ==========================================
   // FUNÇÕES DE UTILIDADE E CORREÇÃO DE FUSO
   // ==========================================
+
+  const generateTimeSlots = (start = '08:00', end = '21:00') => {
+    const slots = [];
+    let startHour = parseInt(start.split(':')[0]);
+    let endHour = parseInt(end.split(':')[0]);
+    if (isNaN(startHour)) startHour = 8;
+    if (isNaN(endHour)) endHour = 21;
+    for (let i = startHour; i <= endHour; i++) {
+      slots.push(`${i.toString().padStart(2, '0')}:00`);
+    }
+    return slots;
+  };
   
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -142,12 +161,20 @@ export default function App() {
     return routes.find(r => normalizeToISO(r.date) === targetISO);
   };
 
+  const getRoomsForSlot = (route, time) => {
+    if (!route) return 99;
+    if (route.shiftSplitTime) {
+      return time < route.shiftSplitTime ? parseInt(route.morningRooms || 1) : parseInt(route.afternoonRooms || 2);
+    }
+    return route.rooms ? parseInt(route.rooms) : 99;
+  };
+
   const checkSlotAvailability = (doctor, date, time, currentId = null) => {
     const targetISO = normalizeToISO(date);
     const targetTime = formatSafeTime(time);
     
     const route = getRouteForDate(date);
-    const rooms = (route && route.rooms) ? parseInt(route.rooms) : 99;
+    const rooms = getRoomsForSlot(route, targetTime);
 
     const doctorConflict = appointments.find(a => {
       if (a.id === currentId) return false; 
@@ -230,10 +257,18 @@ export default function App() {
 
   const handleAddRoute = async (e) => {
     e.preventDefault();
-    const newRoutes = [...routes.filter(r => normalizeToISO(r.date) !== normalizeToISO(routeForm.date)), routeForm];
+    const newRoute = {
+      ...routeForm,
+      rooms: Math.max(routeForm.morningRooms, routeForm.afternoonRooms) // Mantém compatibilidade com a exibição antiga
+    };
+    const newRoutes = [...routes.filter(r => normalizeToISO(r.date) !== normalizeToISO(newRoute.date)), newRoute];
     setRoutes(newRoutes);
-    await syncWithGoogleSheets('UPDATE_ROUTE', routeForm);
-    setRouteForm({ date: '', city: '', rooms: 1 });
+    await syncWithGoogleSheets('UPDATE_ROUTE', newRoute);
+    setRouteForm({ 
+      date: '', city: '', rooms: 1, 
+      startTime: '08:00', endTime: '21:00', 
+      shiftSplitTime: '13:00', morningRooms: 1, afternoonRooms: 2 
+    });
   };
 
   const handleAddClinicNote = async (e) => {
@@ -662,10 +697,34 @@ export default function App() {
                   <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Cidade / Local</label>
                   <input type="text" required placeholder="Ex: Guimarães" className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.city} onChange={e => setRouteForm({...routeForm, city: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Número de Salas</label>
-                  <input type="number" min="1" required placeholder="Salas Disponíveis" className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.rooms || ''} onChange={e => setRouteForm({...routeForm, rooms: parseInt(e.target.value) || 0})} />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Hora Inicial</label>
+                    <input type="time" required className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.startTime} onChange={e => setRouteForm({...routeForm, startTime: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Hora Final</label>
+                    <input type="time" required className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.endTime} onChange={e => setRouteForm({...routeForm, endTime: e.target.value})} />
+                  </div>
                 </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Começo do Turno Tarde</label>
+                  <input type="time" required className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.shiftSplitTime} onChange={e => setRouteForm({...routeForm, shiftSplitTime: e.target.value})} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Salas Manhã</label>
+                    <input type="number" min="1" required className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.morningRooms} onChange={e => setRouteForm({...routeForm, morningRooms: parseInt(e.target.value) || 1})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Salas Tarde</label>
+                    <input type="number" min="1" required className="w-full px-5 py-4 mt-1 rounded-2xl bg-gray-50 outline-none border border-transparent focus:border-[#3C8173] transition-all" value={routeForm.afternoonRooms} onChange={e => setRouteForm({...routeForm, afternoonRooms: parseInt(e.target.value) || 1})} />
+                  </div>
+                </div>
+
                 <button type="submit" className="w-full py-5 rounded-2xl font-bold text-white bg-[#3C8173] hover:bg-[#2D665B] shadow-lg transition-all transform hover:scale-[1.02]">Salvar Roteiro</button>
               </form>
             </div>
@@ -689,7 +748,7 @@ export default function App() {
                         <div className="ml-6">
                           <h4 className="font-bold text-gray-800 text-xl">{route.city}</h4>
                           <span className="text-xs text-[#3C8173] font-bold uppercase flex items-center gap-1 mt-1">
-                            <DoorOpen size={12}/> {route.rooms} Salas Disponíveis
+                            <DoorOpen size={12}/> {route.morningRooms && route.afternoonRooms && route.morningRooms !== route.afternoonRooms ? `${route.morningRooms} Manhã / ${route.afternoonRooms} Tarde` : `${route.rooms} Salas`} | {route.startTime || '08:00'} às {route.endTime || '21:00'}
                           </span>
                         </div>
                       </div>
@@ -769,7 +828,9 @@ export default function App() {
                             </div>
                             {route && (
                               <div className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-lg inline-block ${isSelected ? 'bg-[#E5F0ED] text-[#1F4C44]' : 'bg-gray-100 text-gray-500'}`}>
-                                {route.rooms} Salas
+                                {route.morningRooms && route.afternoonRooms && route.morningRooms !== route.afternoonRooms 
+                                 ? `${route.morningRooms}M/${route.afternoonRooms}T` 
+                                 : `${route.rooms || 1} Salas`}
                               </div>
                             )}
                           </div>
@@ -786,32 +847,37 @@ export default function App() {
                         </div>
 
                         <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
-                            {TIME_SLOTS.map(time => {
-                              const check = checkSlotAvailability(bookingData.doctor, bookingData.date, time);
-                              const isSelected = bookingData.time === time;
+                            {(() => {
+                              const selectedRoute = getRouteForDate(bookingData.date);
+                              const availableSlots = selectedRoute ? generateTimeSlots(selectedRoute.startTime, selectedRoute.endTime) : generateTimeSlots('08:00', '21:00');
                               
-                              return (
-                                <button 
-                                  key={time} 
-                                  disabled={!check.available}
-                                  onClick={() => setBookingData({ ...bookingData, time })} 
-                                  className={`relative px-3 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold transition-all flex flex-col items-center min-w-[80px] md:min-w-[100px] border ${
-                                    isSelected 
-                                    ? 'bg-[#F4F9F8] border-[#3C8173] text-[#1F4C44] shadow-sm' 
-                                    : !check.available 
-                                      ? 'bg-gray-50 text-gray-300 cursor-not-allowed border-dashed border-gray-200 opacity-60' 
-                                      : 'bg-white border-gray-100 hover:border-[#82BCAE] hover:text-[#3C8173] text-gray-600'
-                                  }`}
-                                >
-                                  <span>{time}</span>
-                                  {!check.available && (
-                                    <span className="text-[8px] mt-1 text-red-400 flex items-center gap-0.5 uppercase tracking-tighter">
-                                      <ShieldAlert size={8} /> {check.reason}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
+                              return availableSlots.map(time => {
+                                const check = checkSlotAvailability(bookingData.doctor, bookingData.date, time);
+                                const isSelected = bookingData.time === time;
+                                
+                                return (
+                                  <button 
+                                    key={time} 
+                                    disabled={!check.available}
+                                    onClick={() => setBookingData({ ...bookingData, time })} 
+                                    className={`relative px-3 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold transition-all flex flex-col items-center min-w-[80px] md:min-w-[100px] border ${
+                                      isSelected 
+                                      ? 'bg-[#F4F9F8] border-[#3C8173] text-[#1F4C44] shadow-sm' 
+                                      : !check.available 
+                                        ? 'bg-gray-50 text-gray-300 cursor-not-allowed border-dashed border-gray-200 opacity-60' 
+                                        : 'bg-white border-gray-100 hover:border-[#82BCAE] hover:text-[#3C8173] text-gray-600'
+                                    }`}
+                                  >
+                                    <span>{time}</span>
+                                    {!check.available && (
+                                      <span className="text-[8px] mt-1 text-red-400 flex items-center gap-0.5 uppercase tracking-tighter">
+                                        <ShieldAlert size={8} /> {check.reason}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              });
+                            })()}
                         </div>
                     </div>
                   )}
@@ -950,14 +1016,19 @@ export default function App() {
                       value={formatSafeTime(editData.time)} 
                       onChange={e => setEditData({...editData, time: e.target.value})}
                     >
-                      {TIME_SLOTS.map(t => {
-                        const check = checkSlotAvailability(editData.doctor, editData.date, t, editData.id);
-                        return (
-                          <option key={t} value={t} disabled={!check.available}>
-                            {t} {!check.available ? `(${check.reason})` : ''}
-                          </option>
-                        );
-                      })}
+                      {(() => {
+                        const editRoute = getRouteForDate(editData.date);
+                        const editTimeSlots = editRoute ? generateTimeSlots(editRoute.startTime || '08:00', editRoute.endTime || '21:00') : generateTimeSlots('08:00', '21:00');
+                        
+                        return editTimeSlots.map(t => {
+                          const check = checkSlotAvailability(editData.doctor, editData.date, t, editData.id);
+                          return (
+                            <option key={t} value={t} disabled={!check.available}>
+                              {t} {!check.available ? `(${check.reason})` : ''}
+                            </option>
+                          );
+                        });
+                      })()}
                     </select>
                  </div>
               </div>
