@@ -35,7 +35,7 @@ import {
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1eJerVOA2UyXI1wjfQK6SPrAvUV4SwwYeL31fcOEHKG2ifNspPw5ydE8qfU34yVYM4w/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg5hqgiE12VThPMJ0ITdLU1i5Bqezvt0A4G_RrrgACK7jDndNZUAD_5JccdMql_IjkhA/exec";
 export default function App() {
   // --- Estados Principais ---
   const [currentView, setCurrentView] = useState('home'); 
