@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar as CalendarIcon, 
@@ -35,7 +36,7 @@ import {
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg5hqgiE12VThPMJ0ITdLU1i5Bqezvt0A4G_RrrgACK7jDndNZUAD_5JccdMql_IjkhA/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd-WKTuCg2_m6ba-x8XTwYoLG71tu38SMPzvAzjg5CQiEQ9oC6vav9iGAeRh2upAt7Kw/exec";
 export default function App() {
   // --- Estados Principais ---
   const [currentView, setCurrentView] = useState('home'); 
@@ -91,9 +92,11 @@ export default function App() {
   // ==========================================
 
   const generateTimeSlots = (start = '08:00', end = '21:00') => {
+    const safeStart = formatSafeTime(start);
+    const safeEnd = formatSafeTime(end);
     const slots = [];
-    let startHour = parseInt(start.split(':')[0]);
-    let endHour = parseInt(end.split(':')[0]);
+    let startHour = parseInt(safeStart.split(':')[0]);
+    let endHour = parseInt(safeEnd.split(':')[0]);
     if (isNaN(startHour)) startHour = 8;
     if (isNaN(endHour)) endHour = 21;
     for (let i = startHour; i <= endHour; i++) {
@@ -138,7 +141,8 @@ export default function App() {
     if (!rawTime) return '--:00';
     let t = String(rawTime).trim();
     if (t.includes('T')) {
-      const d = new Date(t);
+      const modernDateString = t.replace(/^1899-[0-9]{2}-[0-9]{2}/, '2000-06-01');
+      const d = new Date(modernDateString);
       if (!isNaN(d.getTime())) {
         const hour = d.getHours().toString().padStart(2, '0');
         const min = d.getMinutes().toString().padStart(2, '0');
@@ -153,6 +157,12 @@ export default function App() {
       }
     }
     return '--:00';
+  };
+
+  const cleanCity = (city) => {
+    if (!city) return '';
+    const trimmed = String(city).trim();
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
   };
 
   const getRouteForDate = (dateStr) => {
@@ -248,10 +258,16 @@ export default function App() {
   const changeMonth = (offset) => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
 
   const handleDeleteRoute = async (date) => {
+    const targetRoute = getRouteForDate(date);
     const normalizedDate = normalizeToISO(date);
     const updated = routes.filter(r => normalizeToISO(r.date) !== normalizedDate);
+    
     setRoutes(updated);
-    await syncWithGoogleSheets('DELETE_ROUTE', { date: normalizedDate });
+    
+    await syncWithGoogleSheets('DELETE_ROUTE', { 
+      date: normalizedDate,
+      originalDate: targetRoute ? targetRoute.date : date 
+    });
   };
 
   const handleAddRoute = async (e) => {
@@ -359,14 +375,11 @@ export default function App() {
   // ==========================================
   
   const renderDashboard = () => {
-    const uniqueCities = Array.from(new Set(appointments.map(a => a.city))).filter(Boolean);
-    const filtered = appointments.filter(app => {
+    const uniqueCities = Array.from(new Set(appointments.map(a => cleanCity(a.city)))).filter(Boolean);    const filtered = appointments.filter(app => {
       const matchSearch = String(app.name || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'Todos' || app.status === filterStatus;
       const matchDoctor = filterDoctor === 'Todos' || app.doctor === filterDoctor;
-      const matchCity = filterCity === 'Todas' || app.city === filterCity;
-      const matchDate = !filterDate || normalizeToISO(app.date) === normalizeToISO(filterDate);
-      return matchSearch && matchStatus && matchDoctor && matchCity && matchDate;
+      const matchCity = filterCity === 'Todas' || cleanCity(app.city) === filterCity;      return matchSearch && matchStatus && matchDoctor && matchCity && matchDate;
     }).sort((a, b) => {
       const dateA = new Date(normalizeToISO(a.date));
       const dateB = new Date(normalizeToISO(b.date));
