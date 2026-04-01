@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar as CalendarIcon, 
@@ -375,11 +374,16 @@ export default function App() {
   // ==========================================
   
   const renderDashboard = () => {
-    const uniqueCities = Array.from(new Set(appointments.map(a => cleanCity(a.city)))).filter(Boolean);    const filtered = appointments.filter(app => {
+    const uniqueCities = Array.from(new Set(appointments.map(a => cleanCity(a.city)))).filter(Boolean);    
+    
+    const filtered = appointments.filter(app => {
       const matchSearch = String(app.name || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'Todos' || app.status === filterStatus;
       const matchDoctor = filterDoctor === 'Todos' || app.doctor === filterDoctor;
-      const matchCity = filterCity === 'Todas' || cleanCity(app.city) === filterCity;      return matchSearch && matchStatus && matchDoctor && matchCity && matchDate;
+      const matchCity = filterCity === 'Todas' || cleanCity(app.city) === filterCity;      
+      const matchDate = !filterDate || normalizeToISO(app.date) === filterDate; // CORREÇÃO: Variável estava faltando
+      
+      return matchSearch && matchStatus && matchDoctor && matchCity && matchDate;
     }).sort((a, b) => {
       const dateA = new Date(normalizeToISO(a.date));
       const dateB = new Date(normalizeToISO(b.date));
@@ -1046,11 +1050,11 @@ export default function App() {
               </div>
               <div className="space-y-2">
                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Nome do Paciente</label>
-                 <input type="text" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173]" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
+                 <input type="text" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173]" value={editData?.name || ''} onChange={e => setEditData({...editData, name: e.target.value})} />
               </div>
               <div className="space-y-2">
                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Observações</label>
-                 <textarea rows="3" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173] resize-none" value={editData.obs} onChange={e => setEditData({...editData, obs: e.target.value})} />
+                 <textarea rows="3" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173] resize-none" value={editData?.obs || ''} onChange={e => setEditData({...editData, obs: e.target.value})} />
               </div>
               <div className="flex justify-end pt-4">
                  <button type="submit" className="px-10 py-4 bg-[#3C8173] text-white font-bold rounded-2xl shadow-xl hover:bg-[#2D665B] transition-all transform hover:scale-[1.02]">Guardar Alterações</button>
