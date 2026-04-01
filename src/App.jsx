@@ -32,10 +32,14 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+// Definimos o caminho da logo como uma constante.
+const logoImg = "logo.png";
+
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd-WKTuCg2_m6ba-x8XTwYoLG71tu38SMPzvAzjg5CQiEQ9oC6vav9iGAeRh2upAt7Kw/exec";
+
 export default function App() {
   // --- Estados Principais ---
   const [currentView, setCurrentView] = useState('home'); 
@@ -273,7 +277,7 @@ export default function App() {
     e.preventDefault();
     const newRoute = {
       ...routeForm,
-      rooms: Math.max(routeForm.morningRooms, routeForm.afternoonRooms) // Mantém compatibilidade com a exibição antiga
+      rooms: Math.max(routeForm.morningRooms, routeForm.afternoonRooms) 
     };
     const newRoutes = [...routes.filter(r => normalizeToISO(r.date) !== normalizeToISO(newRoute.date)), newRoute];
     setRoutes(newRoutes);
@@ -381,7 +385,7 @@ export default function App() {
       const matchStatus = filterStatus === 'Todos' || app.status === filterStatus;
       const matchDoctor = filterDoctor === 'Todos' || app.doctor === filterDoctor;
       const matchCity = filterCity === 'Todas' || cleanCity(app.city) === filterCity;      
-      const matchDate = !filterDate || normalizeToISO(app.date) === filterDate; // CORREÇÃO: Variável estava faltando
+      const matchDate = !filterDate || normalizeToISO(app.date) === filterDate;
       
       return matchSearch && matchStatus && matchDoctor && matchCity && matchDate;
     }).sort((a, b) => {
@@ -391,13 +395,11 @@ export default function App() {
       return formatSafeTime(a.time).localeCompare(formatSafeTime(b.time));
     });
 
-    // Filtros para as colunas
     const pendentes = filtered.filter(a => a.status === 'Pendente');
     const confirmados = filtered.filter(a => a.status === 'Confirmado');
     const concluidos = filtered.filter(a => a.status === 'Concluído');
     const cancelados = filtered.filter(a => a.status === 'Cancelado' || a.status === 'Não Compareceu');
 
-    // Estatísticas do topo
     const todayISO = new Date().toISOString().split('T')[0];
     const statsHoje = appointments.filter(a => normalizeToISO(a.date) === todayISO).length;
     const statsPendentes = appointments.filter(a => a.status === 'Pendente').length;
@@ -512,7 +514,6 @@ export default function App() {
 
     return (
       <div className="flex flex-col gap-6">
-        {/* Barra de Filtros */}
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -551,7 +552,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Cards de Resumo */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-center">
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Hoje</span>
@@ -571,7 +571,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Lista Agrupada de Pacientes */}
         <div className="mt-4">
           {filtered.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
@@ -597,20 +596,17 @@ export default function App() {
     <div className="space-y-12 animate-in fade-in duration-700 pb-20">
       <div className="pt-10 md:pt-16 pb-6 flex flex-col items-center text-center">
         
-        <div className="mb-8 transform hover:scale-105 transition-transform duration-500">
-          <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=256" alt="WB FisioLife" className="w-32 h-32 object-contain drop-shadow-sm rounded-full" />
+        {/* Logo Principal: Agora centralizada e com tamanho de destaque total */}
+        <div className="mb-10 transform hover:scale-105 transition-all duration-500 flex justify-center w-full max-w-2xl">
+          <img 
+            src={logoImg} 
+            alt="WB FisioLife" 
+            className="w-full h-auto max-h-[350px] object-contain drop-shadow-2xl" 
+            onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=512"; }}
+          />
         </div>
 
-        <div className="flex flex-col items-center gap-1">
-          <h1 className="text-4xl md:text-6xl font-serif font-black text-[#3C8173] tracking-tighter uppercase">
-            WB <span className="text-[#3C8173]/90">Fisiolife</span>
-          </h1>
-          <p className="text-[10px] md:text-xs font-bold text-[#3C8173]/70 uppercase tracking-[0.3em] mt-2 border-t border-[#D8B669] pt-2">
-            Quiropraxia | Fisioterapia | Especialidades
-          </p>
-        </div>
-
-        <div className="flex justify-center mt-10">
+        <div className="flex justify-center mt-6">
           <button 
             onClick={() => { setCurrentView('marcar'); setStep(1); }} 
             className="group px-12 py-5 rounded-2xl font-bold text-gray-900 bg-[#D8B669] shadow-lg shadow-[#D8B669]/30 flex items-center hover:bg-[#c2a25c] transition-all transform hover:scale-105 active:scale-95 text-lg"
@@ -680,8 +676,8 @@ export default function App() {
       <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40 h-20 flex items-center px-4">
         <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
           <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('home')}>
-            <img src="https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=128" alt="WB FisioLife" className="w-8 h-8 object-contain mr-2 rounded-full" />
-            <span className="font-serif font-black text-2xl text-[#1F4C44]">WB<span className="text-[#3C8173]">Fisiolife</span></span>
+            {/* Logo na Nav: Agora apenas a imagem, já que ela contém o nome */}
+            <img src={logoImg} alt="WB FisioLife" className="h-14 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <button onClick={() => setCurrentView('home')} className={`p-3 rounded-2xl transition-all ${currentView === 'home' ? 'bg-[#E5F0ED] text-[#2D665B]' : 'text-gray-400 hover:bg-gray-50'}`}><Home size={20}/></button>
@@ -1050,11 +1046,11 @@ export default function App() {
               </div>
               <div className="space-y-2">
                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Nome do Paciente</label>
-                 <input type="text" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173]" value={editData?.name || ''} onChange={e => setEditData({...editData, name: e.target.value})} />
+                 <input type="text" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173]" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
               </div>
               <div className="space-y-2">
                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Observações</label>
-                 <textarea rows="3" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173] resize-none" value={editData?.obs || ''} onChange={e => setEditData({...editData, obs: e.target.value})} />
+                 <textarea rows="3" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#3C8173] resize-none" value={editData.obs} onChange={e => setEditData({...editData, obs: e.target.value})} />
               </div>
               <div className="flex justify-end pt-4">
                  <button type="submit" className="px-10 py-4 bg-[#3C8173] text-white font-bold rounded-2xl shadow-xl hover:bg-[#2D665B] transition-all transform hover:scale-[1.02]">Guardar Alterações</button>
