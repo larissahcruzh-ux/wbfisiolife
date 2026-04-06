@@ -32,7 +32,6 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-// Definimos o caminho da logo como uma constante.
 const logoImg = "logo.png";
 
 // ==========================================
@@ -140,23 +139,25 @@ export default function App() {
     return s;
   };
 
+  // Correção Aplicada: Sempre arredonda para a hora inteira e descarta os minutos quebrados.
   const formatSafeTime = (rawTime) => {
     if (!rawTime) return '--:00';
     let t = String(rawTime).trim();
+    
     if (t.includes('T')) {
       const modernDateString = t.replace(/^1899-[0-9]{2}-[0-9]{2}/, '2000-06-01');
       const d = new Date(modernDateString);
       if (!isNaN(d.getTime())) {
         const hour = d.getHours().toString().padStart(2, '0');
-        const min = d.getMinutes().toString().padStart(2, '0');
-        return `${hour}:${min}`;
+        return `${hour}:00`; 
       }
       t = t.split('T')[1].substring(0, 5); 
     }
+    
     if (t.includes(':')) {
       const parts = t.split(':');
-      if (parts.length >= 2) {
-        return `${parts[0].padStart(2, '0')}:${parts[1].substring(0, 2)}`;
+      if (parts.length >= 1) {
+        return `${parts[0].padStart(2, '0')}:00`;
       }
     }
     return '--:00';
@@ -321,7 +322,7 @@ export default function App() {
 
   const handleBookingSubmit = async (e) => {
     if(e) e.preventDefault();
-    const newAppointment = { ...bookingData, id: Date.now() };
+    const newAppointment = { ...bookingData, time: formatSafeTime(bookingData.time), id: Date.now() };
     setAppointments([...appointments, newAppointment]);
     await syncWithGoogleSheets('ADD_APPOINTMENT', newAppointment);
     setBookingData({ doctor: '', date: '', time: '', name: '', phone: '', city: '', status: 'Pendente', obs: '' });
@@ -367,8 +368,8 @@ export default function App() {
     const cleanDate = formatSafeDate(app.date);
     const cleanTime = formatSafeTime(app.time);
     let msg = type === 'confirmacao' 
-      ? `Olá ${cleanName}! Passamos para confirmar a sua consulta com ${app.doctor} amanhã, dia ${cleanDate} às ${cleanTime} em ${app.city}. Está confirmado? 👍`
-      : `Olá ${cleanName}! Lembramos que a sua consulta com ${app.doctor} é hoje às ${cleanTime} em ${app.city}. Ficamos à sua espera! 😊`;
+      ? `Olá ${cleanName}! Passamos para confirmar a sua consulta com ${app.doctor} amanhã, dia ${cleanDate} às ${cleanTime} em ${app.city}. Está confirmado?`
+      : `Olá ${cleanName}! Lembramos que a sua consulta com ${app.doctor} é hoje às ${cleanTime} em ${app.city}. Ficamos à sua espera!`;
     
     window.open(`https://wa.me/${safePhone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -596,7 +597,7 @@ export default function App() {
     <div className="space-y-12 animate-in fade-in duration-700 pb-20">
       <div className="pt-10 md:pt-16 pb-6 flex flex-col items-center text-center">
         
-        {/* Logo Principal: Agora centralizada e com tamanho de destaque total */}
+        {/* Logo Principal */}
         <div className="mb-10 transform hover:scale-105 transition-all duration-500 flex justify-center w-full max-w-2xl">
           <img 
             src={logoImg} 
@@ -676,7 +677,6 @@ export default function App() {
       <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40 h-20 flex items-center px-4">
         <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
           <div className="flex items-center cursor-pointer" onClick={() => setCurrentView('home')}>
-            {/* Logo na Nav: Agora apenas a imagem, já que ela contém o nome */}
             <img src={logoImg} alt="WB FisioLife" className="h-14 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
