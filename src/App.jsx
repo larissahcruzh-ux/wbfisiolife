@@ -39,7 +39,7 @@ const logoImg = "logo.png";
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd-WKTuCg2_m6ba-x8XTwYoLG71tu38SMPzvAzjg5CQiEQ9oC6vav9iGAeRh2upAt7Kw/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhk1Vj4P5DQxmwgBCNYbpXpRtKG9KDDg_o8G3qLmP5v8Tu_kl6MO9aA8IlnKaIdz_htg/exec";
 
 export default function App() {
   // --- Estados Principais ---
@@ -103,7 +103,6 @@ export default function App() {
     const lastDay = new Date(year, month + 1, 0).getDate();
     const days = [];
     
-    // Cria strings fixas para impedir que o navegador mude o dia dependendo do fuso
     for (let d = 1; d <= lastDay; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const tempDate = new Date(year, month, d);
@@ -134,12 +133,10 @@ export default function App() {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
-  // Extrai apenas HH:MM ignorando qualquer fuso horário atrelado
   const formatSafeTime = (rawTime) => {
     if (!rawTime) return '--:00';
     let t = String(rawTime).trim();
     
-    // Captura estritamente os dois números antes e depois dos dois pontos
     const match = t.match(/(\d{1,2}):(\d{2})/);
     if (match) {
       return `${match[1].padStart(2, '0')}:${match[2]}`;
@@ -189,7 +186,6 @@ export default function App() {
     const targetISO = normalizeToISO(date);
     const targetTime = formatSafeTime(time);
     
-    // 1. Verifica Eventos Bloqueadores
     const blockEvent = calendarEvents.find(e => 
       normalizeToISO(e.date) === targetISO && 
       formatSafeTime(e.time) === targetTime && 
@@ -198,7 +194,6 @@ export default function App() {
     );
     if (blockEvent) return { available: false, reason: blockEvent.title };
 
-    // 2. Verifica Conflito de Doutor
     const doctorConflict = appointments.find(a => {
       if (a.id === currentId) return false;
       return (
@@ -211,7 +206,6 @@ export default function App() {
     });
     if (doctorConflict) return { available: false, reason: 'Médico Ocupado' };
     
-    // 3. Verifica Lotação de Salas
     const route = getRouteForDate(date);
     const rooms = getRoomsForSlot(route, targetTime);
     
@@ -230,6 +224,23 @@ export default function App() {
     }
     
     return { available: true };
+  };
+
+  // ==========================================
+  // ORDENAÇÃO DE CHAVES PARA A PLANILHA
+  // ==========================================
+  const formatOrder = (app) => {
+    return {
+      id: app.id,
+      name: app.name || '',
+      phone: app.phone || '',
+      date: app.date || '',
+      time: app.time || '',
+      doctor: app.doctor || '',
+      city: app.city || '',
+      status: app.status || 'Pendente',
+      obs: app.obs || ''
+    };
   };
 
   // ==========================================
@@ -332,7 +343,8 @@ export default function App() {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
-    const cleanedData = { ...editData, time: formatSafeTime(editData.time) };
+    const rawData = { ...editData, time: formatSafeTime(editData.time) };
+    const cleanedData = formatOrder(rawData);
     
     const check = checkSlotAvailability(cleanedData.doctor, cleanedData.date, cleanedData.time, cleanedData.id);
     if (!check.available) {
@@ -354,7 +366,9 @@ export default function App() {
       return;
     }
 
-    const newAppointment = { ...bookingData, time: formatSafeTime(bookingData.time), id: Date.now() };
+    const rawAppointment = { ...bookingData, time: formatSafeTime(bookingData.time), id: Date.now() };
+    const newAppointment = formatOrder(rawAppointment);
+    
     setAppointments([...appointments, newAppointment]);
     await syncWithGoogleSheets('ADD_APPOINTMENT', newAppointment);
     setBookingData({ doctor: '', date: '', time: '', name: '', phone: '', city: '', status: 'Pendente', obs: '' });
@@ -373,7 +387,7 @@ export default function App() {
       if (!line.trim() || line.toLowerCase().includes('nome;')) return;
       const parts = line.split(';');
       if (parts.length >= 6) {
-        newApps.push({
+        const rawApp = {
           id: timestamp + index,
           name: parts[0]?.trim() || 'Sem Nome',
           phone: parts[1]?.trim() || '',
@@ -383,7 +397,8 @@ export default function App() {
           city: parts[5]?.trim() || 'Base',
           status: parts[6]?.trim() || 'Pendente',
           obs: parts[7]?.trim() || ''
-        });
+        };
+        newApps.push(formatOrder(rawApp));
       }
     });
     
@@ -424,7 +439,6 @@ export default function App() {
   const renderDashboard = () => {
     const uniqueCities = Array.from(new Set(appointments.map(a => cleanCity(a.city)))).filter(Boolean);
     
-    // Usamos localeCompare para ordenar as Strings de forma cega para fusos
     const filtered = appointments.filter(app => {
       const matchSearch = String(app.name || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'Todos' || app.status === filterStatus;
