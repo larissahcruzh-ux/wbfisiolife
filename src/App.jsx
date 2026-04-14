@@ -29,7 +29,9 @@ import {
   ShieldAlert,
   Map as MapIcon,
   Upload,
-  CheckCircle2
+  CheckCircle2,
+  CalendarRange,
+  StickyNote
 } from 'lucide-react';
 
 const logoImg = "logo.png";
@@ -37,7 +39,7 @@ const logoImg = "logo.png";
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxd-WKTuCg2_m6ba-x8XTwYoLG71tu38SMPzvAzjg5CQiEQ9oC6vav9iGAeRh2upAt7Kw/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhk1Vj4P5DQxmwgBCNYbpXpRtKG9KDDg_o8G3qLmP5v8Tu_kl6MO9aA8IlnKaIdz_htg/exec";
 
 export default function App() {
   // --- Estados Principais ---
@@ -45,15 +47,19 @@ export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [clinicNotes, setClinicNotes] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]); // Novo estado para Eventos do Calendário
   const [loading, setLoading] = useState(false);
   
   // Estados do Calendário
   const [viewDate, setViewDate] = useState(new Date());
   
-  // Estados do Modal de Edição
+  // Estados de Modais
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState(null);
   
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventData, setEventData] = useState({ title: '', date: '', time: '', isBlocker: true, doctor: 'Todos' });
+
   // Estado para Confirmação de Exclusão
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   
@@ -69,7 +75,7 @@ export default function App() {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [importing, setImporting] = useState(false);
   
-  // --- Estados de Notas ---
+  // --- Estados de Notas Rápidas ---
   const [newClinicNote, setNewClinicNote] = useState('');
   
   // --- Estados da Marcação ---
@@ -83,8 +89,14 @@ export default function App() {
   });
 
   // ==========================================
-  // FUNÇÕES DE UTILIDADE E CORREÇÃO DE FUSO
+  // FUNÇÕES DE UTILIDADE E ISOLAMENTO DE FUSO
   // ==========================================
+  
+  // Gera string exata da data ignorando Timezone do navegador
+  const getLocalDateStr = (d) => {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   const generateTimeSlots = (start = '08:00', end = '21:00') => {
     const safeStart = formatSafeTime(start);
     const safeEnd = formatSafeTime(end);
@@ -104,7 +116,9 @@ export default function App() {
     const month = date.getMonth();
     const lastDay = new Date(year, month + 1, 0);
     const days = [];
-    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
     return days;
   };
 
@@ -171,34 +185,42 @@ export default function App() {
     return route.rooms ? parseInt(route.rooms) : 99;
   };
 
+  // Trava de Segurança Absoluta contra Sobreposição e Eventos
   const checkSlotAvailability = (doctor, date, time, currentId = null) => {
     const targetISO = normalizeToISO(date);
     const targetTime = formatSafeTime(time);
-    const route = getRouteForDate(date);
-    const rooms = getRoomsForSlot(route, targetTime);
     
+    // 1. Verifica se há um Evento Bloqueador de Agenda
+    const blockEvent = calendarEvents.find(e => 
+      normalizeToISO(e.date) === targetISO && 
+      formatSafeTime(e.time) === targetTime && 
+      e.isBlocker && 
+      (e.doctor === 'Todos' || e.doctor === doctor)
+    );
+    if (blockEvent) return { available: false, reason: blockEvent.title };
+
+    // 2. Verifica Conflito de Doutor
     const doctorConflict = appointments.find(a => {
       if (a.id === currentId) return false;
-      const appISO = normalizeToISO(a.date);
-      const appTime = formatSafeTime(a.time);
       return (
-        appISO === targetISO && 
-        appTime === targetTime && 
+        normalizeToISO(a.date) === targetISO && 
+        formatSafeTime(a.time) === targetTime && 
         a.doctor === doctor && 
         a.status !== 'Cancelado' && 
         a.status !== 'Não Compareceu'
       );
     });
-    
     if (doctorConflict) return { available: false, reason: 'Médico Ocupado' };
+    
+    // 3. Verifica Lotação de Salas
+    const route = getRouteForDate(date);
+    const rooms = getRoomsForSlot(route, targetTime);
     
     const totalAppointmentsAtSlot = appointments.filter(a => {
       if (a.id === currentId) return false;
-      const appISO = normalizeToISO(a.date);
-      const appTime = formatSafeTime(a.time);
       return (
-        appISO === targetISO && 
-        appTime === targetTime && 
+        normalizeToISO(a.date) === targetISO && 
+        formatSafeTime(a.time) === targetTime && 
         a.status !== 'Cancelado' && 
         a.status !== 'Não Compareceu'
       );
@@ -241,6 +263,7 @@ export default function App() {
         setAppointments(res.appointments || []);
         setRoutes(res.routes || []);
         setClinicNotes(res.clinicNotes || []);
+        setCalendarEvents(res.events || []);
       }
       setLoading(false);
     };
@@ -248,6 +271,23 @@ export default function App() {
   }, []);
 
   const changeMonth = (offset) => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
+
+  // --- Manipulação de Eventos do Calendário ---
+  const handleEventSubmit = async (e) => {
+    e.preventDefault();
+    const newEvent = { ...eventData, time: formatSafeTime(eventData.time), id: Date.now() };
+    const updated = [...calendarEvents, newEvent];
+    setCalendarEvents(updated);
+    await syncWithGoogleSheets('ADD_EVENT', newEvent);
+    setShowEventModal(false);
+    setEventData({ title: '', date: '', time: '', isBlocker: true, doctor: 'Todos' });
+  };
+
+  const handleDeleteEvent = async (id) => {
+    const updated = calendarEvents.filter(ev => ev.id !== id);
+    setCalendarEvents(updated);
+    await syncWithGoogleSheets('DELETE_EVENT', { id });
+  };
 
   const handleDeleteRoute = async (date) => {
     const targetRoute = getRouteForDate(date);
@@ -304,6 +344,13 @@ export default function App() {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     const cleanedData = { ...editData, time: formatSafeTime(editData.time) };
+    
+    const check = checkSlotAvailability(cleanedData.doctor, cleanedData.date, cleanedData.time, cleanedData.id);
+    if (!check.available) {
+      alert(`Erro: Não é possível salvar. ${check.reason}`);
+      return;
+    }
+
     setAppointments(appointments.map(app => app.id === cleanedData.id ? cleanedData : app));
     await syncWithGoogleSheets('UPDATE_APPOINTMENT', cleanedData);
     setShowEditModal(false);
@@ -311,6 +358,14 @@ export default function App() {
 
   const handleBookingSubmit = async (e) => {
     if(e) e.preventDefault();
+    
+    // Dupla verificação no momento do envio para garantir consistência em múltiplos dispositivos
+    const check = checkSlotAvailability(bookingData.doctor, bookingData.date, bookingData.time);
+    if (!check.available) {
+      alert(`Atenção: Este horário acabou de se tornar indisponível (${check.reason}). Escolha outro horário.`);
+      return;
+    }
+
     const newAppointment = { ...bookingData, time: formatSafeTime(bookingData.time), id: Date.now() };
     setAppointments([...appointments, newAppointment]);
     await syncWithGoogleSheets('ADD_APPOINTMENT', newAppointment);
@@ -359,19 +414,9 @@ export default function App() {
   const formatarNumeroWhatsApp = (telefone) => {
     if (!telefone) return '';
     let numero = String(telefone).replace(/\D/g, '');
-    
-    if (numero.startsWith('0')) {
-      numero = numero.substring(1);
-    }
-    
-    if (numero.startsWith('55') && numero.length >= 12) {
-      numero = numero.substring(2);
-    }
-    
-    if (numero.length === 10) {
-      numero = `${numero.substring(0, 2)}9${numero.substring(2)}`;
-    }
-    
+    if (numero.startsWith('0')) numero = numero.substring(1);
+    if (numero.startsWith('55') && numero.length >= 12) numero = numero.substring(2);
+    if (numero.length === 10) numero = `${numero.substring(0, 2)}9${numero.substring(2)}`;
     return `55${numero}`;
   };
 
@@ -408,12 +453,23 @@ export default function App() {
       return formatSafeTime(a.time).localeCompare(formatSafeTime(b.time));
     });
 
+    const filteredEvents = calendarEvents.filter(ev => {
+      const matchDate = !filterDate || normalizeToISO(ev.date) === filterDate;
+      const matchDoctor = filterDoctor === 'Todos' || ev.doctor === 'Todos' || ev.doctor === filterDoctor;
+      return matchDate && matchDoctor;
+    }).sort((a, b) => {
+      const dateA = new Date(normalizeToISO(a.date));
+      const dateB = new Date(normalizeToISO(b.date));
+      if (dateA - dateB !== 0) return dateA - dateB;
+      return formatSafeTime(a.time).localeCompare(formatSafeTime(b.time));
+    });
+
     const pendentes = filtered.filter(a => a.status === 'Pendente');
     const confirmados = filtered.filter(a => a.status === 'Confirmado');
     const concluidos = filtered.filter(a => a.status === 'Concluído');
     const cancelados = filtered.filter(a => a.status === 'Cancelado' || a.status === 'Não Compareceu');
     
-    const todayISO = new Date().toISOString().split('T')[0];
+    const todayISO = getLocalDateStr(new Date());
     const statsHoje = appointments.filter(a => normalizeToISO(a.date) === todayISO).length;
     const statsPendentes = appointments.filter(a => a.status === 'Pendente').length;
     const statsConcluidos = appointments.filter(a => a.status === 'Concluído').length;
@@ -532,7 +588,53 @@ export default function App() {
       );
     };
 
-    const renderGroup = (title, items, dotColor) => {
+    const renderEventCard = (ev) => {
+      const [hour, min] = formatSafeTime(ev.time).split(':');
+      const colorClass = ev.isBlocker ? 'bg-[#9333EA]' : 'bg-[#6B7280]';
+      const bgLight = ev.isBlocker ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-100';
+      const textDark = ev.isBlocker ? 'text-purple-800' : 'text-gray-700';
+
+      return (
+        <div key={ev.id} className={`${bgLight} rounded-2xl shadow-sm border p-5 flex flex-col sm:flex-row gap-5 hover:shadow-md transition-shadow relative overflow-hidden`}>
+          <div className="absolute top-0 right-0 w-16 h-16 bg-white/40 rounded-bl-[100px] -z-0"></div>
+          
+          <div className={`${colorClass} text-white rounded-2xl w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center shadow-sm z-10`}>
+            <span className="text-xl font-black leading-none">{hour}</span>
+            <span className="text-xs font-bold opacity-80">{min}</span>
+          </div>
+          
+          <div className="flex-1 flex flex-col justify-center min-w-0 z-10">
+            <div className="flex justify-between items-start mb-2 gap-2">
+              <h4 className={`font-bold ${textDark} text-lg leading-tight truncate flex items-center gap-2`}>
+                {ev.isBlocker ? <ShieldAlert size={18} className="text-purple-600"/> : <StickyNote size={18} className="text-gray-500"/>}
+                {ev.title}
+              </h4>
+              <div className="flex gap-2 items-center">
+                <span className={`text-[9px] font-bold px-2 py-1 rounded-full border uppercase ${ev.isBlocker ? 'text-purple-600 border-purple-200 bg-purple-100' : 'text-gray-500 border-gray-200 bg-gray-100'}`}>
+                  {ev.isBlocker ? 'Bloqueio' : 'Nota'}
+                </span>
+                <button onClick={() => handleDeleteEvent(ev.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <div>
+                <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Data</p>
+                <p className={`font-medium ${textDark} text-xs truncate`}>{formatSafeDate(ev.date)}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-[10px] uppercase font-bold mb-0.5 tracking-wider">Doutor Afetado</p>
+                <p className={`font-medium ${textDark} text-xs truncate`}>{ev.doctor}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const renderGroup = (title, items, dotColor, isEventGroup = false) => {
       if (items.length === 0) return null;
       return (
         <div className="mb-8 animate-in fade-in">
@@ -541,7 +643,7 @@ export default function App() {
             <h3 className="text-gray-500 font-bold text-sm">{title}</h3>
           </div>
           <div className="space-y-4">
-            {items.map(app => renderCard(app))}
+            {items.map(item => isEventGroup ? renderEventCard(item) : renderCard(item))}
           </div>
         </div>
       );
@@ -624,6 +726,14 @@ export default function App() {
             >
               <Upload size={16} />
             </button>
+
+            <button 
+              onClick={() => setShowEventModal(true)} 
+              className="p-2 text-white bg-[#9333EA] hover:bg-[#7E22CE] rounded-xl shadow-sm transition-all" 
+              title="Adicionar Evento / Bloqueio"
+            >
+              <CalendarRange size={16} />
+            </button>
           </div>
         </div>
 
@@ -647,15 +757,16 @@ export default function App() {
         </div>
 
         <div className="mt-4 w-full">
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && filteredEvents.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
               <div className="flex flex-col items-center gap-4">
                 <FileUp size={48} className="text-gray-200" />
-                <p className="text-gray-400 text-sm">Nenhum agendamento encontrado.</p>
+                <p className="text-gray-400 text-sm">Nenhum registro encontrado para estes filtros.</p>
               </div>
             </div>
           ) : (
             <>
+              {renderGroup('Eventos do Calendário', filteredEvents, 'bg-[#9333EA]', true)}
               {renderGroup('Pendentes', pendentes, 'bg-[#F59E0B]')}
               {renderGroup('Confirmados', confirmados, 'bg-blue-500')}
               {renderGroup('Concluídos', concluidos, 'bg-[#10B981]')}
@@ -678,12 +789,18 @@ export default function App() {
             onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=WB&background=3C8173&color=fff&size=512"; }} 
           />
         </div>
-        <div className="flex justify-center mt-6">
+        <div className="flex justify-center mt-6 gap-4 flex-wrap">
           <button 
             onClick={() => { setCurrentView('marcar'); setStep(1); }} 
-            className="group px-12 py-5 rounded-2xl font-bold text-gray-900 bg-[#D8B669] shadow-lg shadow-[#D8B669]/30 flex items-center hover:bg-[#c2a25c] transition-all transform hover:scale-105 active:scale-95 text-lg"
+            className="group px-10 py-4 md:px-12 md:py-5 rounded-2xl font-bold text-gray-900 bg-[#D8B669] shadow-lg shadow-[#D8B669]/30 flex items-center hover:bg-[#c2a25c] transition-all transform hover:scale-105 active:scale-95 text-base md:text-lg"
           >
             <Plus className="mr-3 group-hover:rotate-90 transition-transform" size={24} /> Nova Marcação
+          </button>
+          <button 
+            onClick={() => setShowEventModal(true)} 
+            className="group px-10 py-4 md:px-12 md:py-5 rounded-2xl font-bold text-white bg-[#9333EA] shadow-lg shadow-[#9333EA]/30 flex items-center hover:bg-[#7E22CE] transition-all transform hover:scale-105 active:scale-95 text-base md:text-lg"
+          >
+            <CalendarRange className="mr-3 transition-transform" size={24} /> Novo Evento
           </button>
         </div>
       </div>
@@ -691,12 +808,12 @@ export default function App() {
       <div className="max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-top-4">
         <div className="flex items-center gap-2 mb-4 px-2">
           <Clipboard className="text-[#D8B669]" size={20} />
-          <h3 className="text-xl font-serif font-bold text-[#1F4C44]">Observações</h3>
+          <h3 className="text-xl font-serif font-bold text-[#1F4C44]">Observações Gerais</h3>
         </div>
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6">
           <div className="relative">
             <textarea 
-              placeholder="Escrever observação..." 
+              placeholder="Escrever observação rápida..." 
               className="w-full p-5 pr-14 rounded-2xl bg-gray-50 border border-transparent focus:border-[#3C8173]/30 outline-none text-sm resize-none h-28 transition-all" 
               value={newClinicNote} 
               onChange={e => setNewClinicNote(e.target.value)} 
@@ -734,7 +851,7 @@ export default function App() {
       <div className="space-y-6 w-full">
         <div className="flex items-center gap-3 px-2">
           <CalendarDays className="text-[#3C8173]" size={24} />
-          <h2 className="text-2xl font-serif font-bold text-[#1F4C44]">Agenda de Consultas</h2>
+          <h2 className="text-2xl font-serif font-bold text-[#1F4C44]">Agenda de Consultas e Eventos</h2>
         </div>
         {renderDashboard()}
       </div>
@@ -838,7 +955,7 @@ export default function App() {
                     <div key={idx} className="flex items-center justify-between p-6 bg-gray-50 rounded-3xl group hover:bg-white hover:shadow-lg transition-all border border-transparent hover:border-gray-100">
                       <div className="flex items-center">
                         <div className="bg-[#E5F0ED] text-[#1F4C44] font-black p-4 rounded-2xl text-center min-w-[80px]">
-                          <div className="text-[10px] uppercase opacity-60">{new Date(normalizeToISO(route.date)).toLocaleDateString('pt-BR', { weekday: 'short' })}</div>
+                          <div className="text-[10px] uppercase opacity-60">{new Date(normalizeToISO(route.date)).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' })}</div>
                           <div className="text-2xl">{normalizeToISO(route.date).split('-')[2]}</div>
                         </div>
                         <div className="ml-6">
@@ -900,7 +1017,7 @@ export default function App() {
                   
                   <div className="grid grid-cols-4 md:grid-cols-7 gap-2 mb-6">
                     {getDaysInMonth(viewDate).map((d) => {
-                      const dateStr = d.toISOString().split('T')[0];
+                      const dateStr = getLocalDateStr(d); // Usa conversão segura e cravada
                       const route = getRouteForDate(dateStr);
                       const isSelected = bookingData.date === dateStr;
                       return (
@@ -934,7 +1051,7 @@ export default function App() {
                     <div className="animate-in fade-in pt-2">
                       <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 text-gray-600 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold border border-gray-100 leading-tight">
                         <span className="flex items-center gap-1.5 shrink-0 text-[#3C8173]"><Info size={16} /> </span>
-                        Horários ocupados ou sem salas disponíveis são bloqueados automaticamente.
+                        Horários ocupados, bloqueados por eventos ou sem salas disponíveis são desativados automaticamente.
                       </div>
                       <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
                         {(() => {
@@ -955,9 +1072,9 @@ export default function App() {
                               >
                                 <span>{time}</span>
                                 {!check.available && (
-                                  <span className="text-[8px] mt-1 text-red-400 flex items-center gap-0.5 uppercase tracking-tighter">
-                                    <ShieldAlert size={8} />
-                                    {check.reason}
+                                  <span className="text-[8px] mt-1 text-red-400 flex items-center gap-0.5 uppercase tracking-tighter text-center">
+                                    <ShieldAlert size={8} className="flex-shrink-0" />
+                                    <span className="truncate max-w-[60px]">{check.reason}</span>
                                   </span>
                                 )}
                               </button>
@@ -1073,6 +1190,94 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* MODAL DE EVENTO DO CALENDÁRIO */}
+      {showEventModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-[#9333EA] p-8 text-white flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-serif font-bold flex items-center gap-2"><CalendarRange size={24}/> Adicionar Evento</h2>
+                <p className="text-purple-200 text-xs mt-1">Crie notas ou bloqueie horários na agenda</p>
+              </div>
+              <button onClick={() => setShowEventModal(false)} className="text-white/40 hover:text-white bg-white/10 p-2 rounded-xl transition-colors">
+                <XCircle size={24}/>
+              </button>
+            </div>
+            
+            <form onSubmit={handleEventSubmit} className="p-8 space-y-5">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Título do Evento / Motivo</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Ex: Reunião, Almoço, Manutenção..."
+                  className="w-full p-4 mt-1 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-purple-500 transition-all" 
+                  value={eventData.title} 
+                  onChange={e => setEventData({...eventData, title: e.target.value})} 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Data</label>
+                  <input 
+                    type="date" 
+                    required 
+                    className="w-full p-4 mt-1 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-purple-500 transition-all" 
+                    value={eventData.date} 
+                    onChange={e => setEventData({...eventData, date: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Horário</label>
+                  <input 
+                    type="time" 
+                    required 
+                    className="w-full p-4 mt-1 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-purple-500 transition-all" 
+                    value={eventData.time} 
+                    onChange={e => setEventData({...eventData, time: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Doutor Afetado</label>
+                <select 
+                  className="w-full p-4 mt-1 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer" 
+                  value={eventData.doctor} 
+                  onChange={e => setEventData({...eventData, doctor: e.target.value})}
+                >
+                  <option value="Todos">Todos (Bloqueia a Clínica Inteira)</option>
+                  <option value="Dr. Willian">Dr. Willian</option>
+                  <option value="Dra. Bianca">Dra. Bianca</option>
+                </select>
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center gap-3 p-4 bg-purple-50 rounded-2xl border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 accent-purple-600 rounded"
+                    checked={eventData.isBlocker}
+                    onChange={e => setEventData({...eventData, isBlocker: e.target.checked})}
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-bold text-purple-900 text-sm">Bloquear Horário na Agenda</span>
+                    <span className="text-xs text-purple-700">Impede que novos agendamentos sejam feitos neste horário.</span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <button type="submit" className="px-10 py-4 bg-[#9333EA] text-white font-bold rounded-2xl shadow-xl hover:bg-[#7E22CE] transition-all transform hover:scale-[1.02]">
+                  Salvar Evento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE IMPORTAÇÃO */}
       {showBatchModal && (
