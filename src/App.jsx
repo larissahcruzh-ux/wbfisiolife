@@ -39,7 +39,7 @@ const logoImg = "logo.png";
 // ==========================================
 // CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
 // ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw4t5QF5qEhz8z4WdU44L9ClMPU7YooiREqg2_mrar7wt7wzjoU0V_w2ZAc76ud9vQ_Zg/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDhGCVp2ZTHmuJABFsIagoYXl4ZmoxUMwTpuznaoWCGrmOohq10ClQxEOWpSxVwVPcpg/exec";
 
 export default function App() {
   // --- Estados Principais ---
