@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabase'; // IMPORTANTE: Arquivo de config do Supabase
 import {
   Calendar as CalendarIcon,
   MapPin,
@@ -35,11 +36,6 @@ import {
 } from 'lucide-react';
 
 const logoImg = "logo.png";
-
-// ==========================================
-// CONFIGURAÇÃO DE APIS E INTEGRAÇÕES
-// ==========================================
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDhGCVp2ZTHmuJABFsIagoYXl4ZmoxUMwTpuznaoWCGrmOohq10ClQxEOWpSxVwVPcpg/exec";
 
 export default function App() {
   // --- Estados Principais ---
@@ -227,7 +223,7 @@ export default function App() {
   };
 
   // ==========================================
-  // ORDENAÇÃO DE CHAVES PARA A PLANILHA
+  // ORDENAÇÃO DE CHAVES
   // ==========================================
   const formatOrder = (app) => {
     return {
@@ -244,70 +240,57 @@ export default function App() {
   };
 
   // ==========================================
-  // LÓGICA DE SINCRONIZAÇÃO
+  // CARREGAMENTO INICIAL SUPABASE
   // ==========================================
-  const syncWithGoogleSheets = async (action, data) => {
-    if (!APPS_SCRIPT_URL) return { success: true };
-    try {
-      setLoading(true);
-      const response = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, payload: data })
-      });
-      const result = await response.json();
-      setLoading(false);
-      return result;
-    } catch (error) {
-      console.error("Erro na sincronização:", error);
-      setLoading(false);
-      return { success: false, error };
-    }
-  };
-
   useEffect(() => {
     const loadAllData = async () => {
       setLoading(true);
-      const res = await syncWithGoogleSheets('FETCH_ALL', {});
-      if (res && res.success) {
-        setAppointments(res.appointments || []);
-        setRoutes(res.routes || []);
-        setClinicNotes(res.clinicNotes || []);
-        setCalendarEvents(res.events || []);
+      try {
+        const [appRes, routesRes, notesRes, eventsRes] = await Promise.all([
+          supabase.from('appointments').select('*'),
+          supabase.from('routes').select('*'),
+          supabase.from('clinic_notes').select('*').order('id', { ascending: false }),
+          supabase.from('calendar_events').select('*')
+        ]);
+
+        if (appRes.error) throw appRes.error;
+        if (appRes.data) setAppointments(appRes.data);
+        if (routesRes.data) setRoutes(routesRes.data);
+        if (notesRes.data) setClinicNotes(notesRes.data);
+        if (eventsRes.data) setCalendarEvents(eventsRes.data);
+      } catch (error) {
+        console.error("Erro ao carregar dados do Supabase:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadAllData();
   }, []);
 
   const changeMonth = (offset) => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
 
-  // --- Manipulação de Dados ---
+  // ==========================================
+  // LÓGICA DE SINCRONIZAÇÃO SUPABASE (CRUD)
+  // ==========================================
+  
   const handleEventSubmit = async (e) => {
     e.preventDefault();
     const newEvent = { ...eventData, time: formatSafeTime(eventData.time), id: Date.now() };
-    const updated = [...calendarEvents, newEvent];
-    setCalendarEvents(updated);
-    await syncWithGoogleSheets('ADD_EVENT', newEvent);
+    setCalendarEvents([...calendarEvents, newEvent]);
+    await supabase.from('calendar_events').insert([newEvent]);
     setShowEventModal(false);
     setEventData({ title: '', date: '', time: '', isBlocker: true, doctor: 'Todos' });
   };
 
   const handleDeleteEvent = async (id) => {
-    const updated = calendarEvents.filter(ev => ev.id !== id);
-    setCalendarEvents(updated);
-    await syncWithGoogleSheets('DELETE_EVENT', { id });
+    setCalendarEvents(calendarEvents.filter(ev => ev.id !== id));
+    await supabase.from('calendar_events').delete().eq('id', id);
   };
 
   const handleDeleteRoute = async (date) => {
-    const targetRoute = getRouteForDate(date);
     const normalizedDate = normalizeToISO(date);
-    const updated = routes.filter(r => normalizeToISO(r.date) !== normalizedDate);
-    setRoutes(updated);
-    await syncWithGoogleSheets('DELETE_ROUTE', { 
-      date: normalizedDate, 
-      originalDate: targetRoute ? targetRoute.date : date 
-    });
+    setRoutes(routes.filter(r => normalizeToISO(r.date) !== normalizedDate));
+    await supabase.from('routes').delete().eq('date', normalizedDate);
   };
 
   const handleAddRoute = async (e) => {
@@ -315,7 +298,7 @@ export default function App() {
     const newRoute = { ...routeForm, rooms: Math.max(routeForm.morningRooms, routeForm.afternoonRooms) };
     const newRoutes = [...routes.filter(r => normalizeToISO(r.date) !== normalizeToISO(newRoute.date)), newRoute];
     setRoutes(newRoutes);
-    await syncWithGoogleSheets('UPDATE_ROUTE', newRoute);
+    await supabase.from('routes').upsert([newRoute], { onConflict: 'date' });
     setRouteForm({ date: '', city: '', rooms: 1, startTime: '08:00', endTime: '21:00', shiftSplitTime: '13:00', morningRooms: 1, afternoonRooms: 2 });
   };
 
@@ -323,22 +306,20 @@ export default function App() {
     if (e) e.preventDefault();
     if (!newClinicNote.trim()) return;
     const note = { id: Date.now(), text: newClinicNote, date: getTodayISO(), timestamp: new Date().toISOString() };
-    const updated = [note, ...clinicNotes];
-    setClinicNotes(updated);
+    setClinicNotes([note, ...clinicNotes]);
+    await supabase.from('clinic_notes').insert([note]);
     setNewClinicNote('');
-    await syncWithGoogleSheets('SYNC_CLINIC_NOTES', updated);
   };
 
   const handleDeleteClinicNote = async (id) => {
-    const updated = clinicNotes.filter(n => n.id !== id);
-    setClinicNotes(updated);
-    await syncWithGoogleSheets('SYNC_CLINIC_NOTES', updated);
+    setClinicNotes(clinicNotes.filter(n => n.id !== id));
+    await supabase.from('clinic_notes').delete().eq('id', id);
   };
 
   const confirmDeleteAppointment = async (id) => {
     setAppointments(appointments.filter(app => app.id !== id));
     setDeleteConfirmId(null);
-    await syncWithGoogleSheets('DELETE_APPOINTMENT', { id });
+    await supabase.from('appointments').delete().eq('id', id);
   };
 
   const handleSaveEdit = async (e) => {
@@ -353,7 +334,7 @@ export default function App() {
     }
 
     setAppointments(appointments.map(app => app.id === cleanedData.id ? cleanedData : app));
-    await syncWithGoogleSheets('UPDATE_APPOINTMENT', cleanedData);
+    await supabase.from('appointments').update(cleanedData).eq('id', cleanedData.id);
     setShowEditModal(false);
   };
 
@@ -370,7 +351,7 @@ export default function App() {
     const newAppointment = formatOrder(rawAppointment);
     
     setAppointments([...appointments, newAppointment]);
-    await syncWithGoogleSheets('ADD_APPOINTMENT', newAppointment);
+    await supabase.from('appointments').insert([newAppointment]);
     setBookingData({ doctor: '', date: '', time: '', name: '', phone: '', city: '', status: 'Pendente', obs: '' });
     setStep(1);
     setCurrentView('home');
@@ -404,7 +385,7 @@ export default function App() {
     
     if (newApps.length > 0) {
       setAppointments([...appointments, ...newApps]);
-      await syncWithGoogleSheets('BATCH_IMPORT', newApps);
+      await supabase.from('appointments').insert(newApps);
       setBatchInput('');
       setShowBatchModal(false);
     }
@@ -499,7 +480,7 @@ export default function App() {
                 onChange={async (e) => {
                   const newStatus = e.target.value;
                   setAppointments(appointments.map(a => a.id === app.id ? {...a, status: newStatus} : a));
-                  await syncWithGoogleSheets('UPDATE_STATUS', { id: app.id, status: newStatus });
+                  await supabase.from('appointments').update({ status: newStatus }).eq('id', app.id);
                 }}
               >
                 <option value="Pendente">Pendente</option>
